@@ -1,0 +1,11 @@
+import { useEffect, useState } from 'react';
+import { api } from '../../../lib/api/client';
+import type { Screen } from '../../../types';
+export default function OrganizationOverview({onNavigate,refreshKey=0}:{onNavigate?:(screen:Screen)=>void;refreshKey?:number}) {
+  const [data,setData]=useState<any>(null), [error,setError]=useState('');
+  useEffect(()=>{let live=true;api.get<any>('/api/organization/dashboard').then(r=>{if(live){setData(r.data.data);setError('');}}).catch(e=>{if(live)setError(e.message||'Unable to load organization summary.');});return()=>{live=false;};},[refreshKey]);
+  if(error)return <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>;
+  if(!data)return <p className="text-sm text-slate-400">Loading organization summary…</p>;
+  const cards=[{label:'Active employees',value:data.totalEmployees,screen:'reporting-hierarchy'}, {label:'Present today',value:data.attendance.present,screen:'team-attendance'}, {label:'On leave today',value:data.leave.onLeaveToday,screen:'supervisor'}, {label:'Awaiting my approval',value:data.leave.pendingForMe,screen:'supervisor'}, {label:'Open reviews',value:data.performance.open,screen:'performance'}, {label:'Review cycles with open reviews',value:data.performance.cycles,screen:'performance'}];
+  return <section className="space-y-4"><div className="flex flex-wrap justify-between gap-2"><h2 className="font-bold text-slate-800">{data.scope} overview · {data.rank?.replaceAll('_',' ')}</h2><span className="text-xs text-slate-500">Attendance date: {data.attendance.date} · {data.attendance.notRecorded} not recorded</span></div><div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{cards.map(c=><button key={c.label} onClick={()=>onNavigate?.(c.screen as Screen)} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-blue-300"><p className="text-xs font-semibold text-slate-500">{c.label}</p><p className="mt-2 text-2xl font-bold text-slate-800">{c.value}</p></button>)}</div><div className="flex flex-wrap gap-2">{data.departments.map((d:any)=><span key={d.name} className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs text-blue-700">{d.name}: {d.total}</span>)}</div></section>;
+}
