@@ -384,7 +384,7 @@ export default function UnifiedLayout({ currentScreen, onNavigate, children }: U
             aria-expanded={isSidebarOpen}
             onClick={() => setSidebarOpen(!isSidebarOpen)}
             aria-label={isSidebarOpen ? 'Close navigation' : 'Open navigation'}
-            className="mobile-nav-toggle p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-blue-600 shadow-sm transition-colors"
+            className="mobile-nav-toggle app-action app-action-icon"
           >
             <motion.div animate={{ rotate: isSidebarOpen ? 180 : 0 }}>
               {isCompact ? <Menu size={20} /> : <ChevronRight size={18} />}

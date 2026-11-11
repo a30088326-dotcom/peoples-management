@@ -41,7 +41,7 @@ export default function NavigationDrawer({ compact, open, onClose, triggerRef, c
       style={compact ? { width: 'min(320px, calc(100vw - 24px))' } : undefined}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       className={`${compact ? 'fixed inset-y-3 left-3 z-[110]' : 'relative m-4 z-50'} ${compact && !open ? 'invisible pointer-events-none' : ''} app-navigation flex flex-col glass border-r border-white/50 shadow-xl shadow-slate-200/50 rounded-[2rem] overflow-hidden`}>
-      {compact && <button ref={closeButton} type="button" aria-label="Close navigation" onClick={onClose} className="absolute right-3 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-500 hover:bg-blue-50 hover:text-blue-600"><X size={20} /></button>}
+      {compact && <button ref={closeButton} type="button" aria-label="Close navigation" onClick={onClose} className="app-action app-action-icon absolute right-3 top-4 z-10 h-11 w-11"><X size={20} /></button>}
       {children}
     </motion.aside>
   </>;

@@ -166,8 +166,8 @@ export default function AssignEmployee() {
 
       <div className="max-w-2xl space-y-5 rounded-2xl border border-slate-200 bg-white p-6">
         <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-1">
-          <button type="button" disabled={saving || loading} aria-pressed={mode === 'department'} onClick={() => switchMode('department')} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-semibold disabled:opacity-50 ${mode === 'department' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}><Building2 size={17} /> Search department</button>
-          <button type="button" disabled={saving || loading} aria-pressed={mode === 'employee'} onClick={() => switchMode('employee')} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-semibold disabled:opacity-50 ${mode === 'employee' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}><UserPlus size={17} /> Search employee</button>
+          <button type="button" disabled={saving || loading} aria-pressed={mode === 'department'} onClick={() => switchMode('department')} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-semibold disabled:opacity-50 ${mode === 'department' ? 'bg-[var(--action-color)] text-[var(--action-text)] shadow-sm' : 'text-slate-600 hover:bg-white'}`}><Building2 size={17} /> Search department</button>
+          <button type="button" disabled={saving || loading} aria-pressed={mode === 'employee'} onClick={() => switchMode('employee')} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-semibold disabled:opacity-50 ${mode === 'employee' ? 'bg-[var(--action-color)] text-[var(--action-text)] shadow-sm' : 'text-slate-600 hover:bg-white'}`}><UserPlus size={17} /> Search employee</button>
         </div>
 
         {mode === 'department' && <div className="space-y-3">

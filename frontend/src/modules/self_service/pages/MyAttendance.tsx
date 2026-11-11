@@ -416,7 +416,7 @@ export default function MyAttendance() {
                         onClick={() => setManualDate(dateKey)}
                         title={record ? `Marked: ${record.inTime || '--'} - ${record.outTime || '--'}` : isFuture ? 'Future date' : 'Not marked'}
                         className={`h-8 rounded-md text-xs font-semibold transition-colors ${
-                          isSelected ? 'bg-indigo-600 text-white' : record ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed' : isFuture ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                          isSelected ? 'bg-[var(--action-color)] text-[var(--action-text)]' : record ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed' : isFuture ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
                         }`}
                       >
                         {index + 1}
@@ -427,7 +427,7 @@ export default function MyAttendance() {
                 <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-slate-500">
                   <span><i className="inline-block w-2.5 h-2.5 rounded bg-emerald-100 mr-1" />Marked</span>
                   <span><i className="inline-block w-2.5 h-2.5 rounded bg-amber-50 mr-1" />Not marked</span>
-                  <span><i className="inline-block w-2.5 h-2.5 rounded bg-indigo-600 mr-1" />Selected</span>
+                  <span><i className="inline-block w-2.5 h-2.5 rounded bg-[var(--action-color)] mr-1" />Selected</span>
                 </div>
               </div>}
               <label className="block text-sm font-medium text-slate-700">

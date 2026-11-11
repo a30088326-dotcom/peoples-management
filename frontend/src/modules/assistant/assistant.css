@@ -6,4 +6,4 @@
 .hrbot-workspace > section { display: flex; flex-direction: column; }
 .hrbot-conversation { height: auto; min-height: 0; flex: 1; }
 .hrbot-inbox-tabs { display: flex; gap: 8px; position: sticky; top: 0; background: #f4f7ff; padding-bottom: 8px; z-index: 1; }
-.hrbot-inbox-tabs button[aria-pressed="true"] { background: #285bea; color: white; border-radius: 8px; }
+.hrbot-inbox-tabs button[aria-pressed="true"] { background: var(--action-color); color: var(--action-text); border-radius: 8px; }

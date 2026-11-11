@@ -142,11 +142,11 @@ export default function EIMManagementHub({ onNavigate }: Props) {
                   aria-current={isActive ? 'page' : undefined}
                   className={`shrink-0 md:w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors group ${
                     isActive 
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                      ? 'bg-[var(--action-color)] text-[var(--action-text)] shadow-sm'
                       : 'text-slate-600 hover:bg-white hover:text-indigo-600'
                   }`}
                 >
-                  <Icon size={18} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'} />
+                  <Icon size={18} className={isActive ? 'text-current' : 'text-slate-400 group-hover:text-indigo-600'} />
                   {tab.label}
                 </button>
               );
