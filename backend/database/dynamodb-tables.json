@@ -832,6 +832,13 @@
       }
     },
     {
+      "name": "payroll_records",
+      "partitionKey": {
+        "name": "id",
+        "type": "S"
+      }
+    },
+    {
       "name": "hr_assistant_collections",
       "partitionKey": {
         "name": "id",

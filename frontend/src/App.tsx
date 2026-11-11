@@ -13,6 +13,7 @@ import AdvancedEims from './modules/employee_information/pages/AdvancedEims';
 import SSHRHub from './modules/self_service/pages/SSHRHub';
 import LeaveManagementHub from './modules/leave_management/pages/LeaveManagementHub';
 import AttendanceManagementHub from './modules/attendance/pages/AttendanceManagementHub';
+import PayrollWorkspace from './modules/payroll/pages/PayrollWorkspace';
 import AccessControlHub from './modules/access_control/pages/AccessControlHub';
 import EIMManagementHub from './modules/eim/EIMManagementHub';
 import Dashboard from './modules/dashboard/pages/Dashboard';
@@ -43,6 +44,7 @@ const PATH_MAP: Record<string, string> = {
   'self_service': '/self_service',
   'leave-management': '/leave-management',
   'attendance': '/attendance',
+  'payroll': '/payroll',
   'dashboard': '/dashboard',
   'reporting-hierarchy': '/reporting-hierarchy',
   'eim': '/eim',
@@ -61,6 +63,7 @@ const SCREEN_MODULE_MAP: Record<string, string | string[]> = {
   'team-attendance': 'leave_approval',
   'executive-request-center': 'leave_approval',
   'attendance': 'attendance_management',
+  'payroll': 'payroll_management',
   'reporting-hierarchy': 'reporting_hierarchy',
   'onboarding': 'onboarding',
   'verification': 'document_verification',
@@ -129,6 +132,8 @@ function MainApp() {
   const isScreenAuthorized = (user: any, scr: Screen) => {
     if (!user) return false;
     if (scr === 'invite-landing') return true;
+    if (scr === 'payroll') return user.role === 'SUPER_ADMIN' || Boolean(user.permissions?.some((p: any) =>
+      p.moduleId === 'payroll_management' && p.moduleAccess && p.canView && ['ALL', 'ORGANIZATION'].includes(p.dataScope)));
     if(user.role==='CANDIDATE')return scr==='onboarding'||scr==='contract';
     if (scr === 'assistant-admin') return user.role === 'SUPER_ADMIN';
     if (scr === 'assistant') return ['SUPER_ADMIN', 'ADMIN', 'EMPLOYEE'].includes(user.role);
@@ -254,6 +259,7 @@ function MainApp() {
       case 'self_service': return <SSHRHub onNavigate={navigate} />;
       case 'leave-management': return <LeaveManagementHub onNavigate={navigate} />;
       case 'attendance': return <AttendanceManagementHub onNavigate={navigate} />;
+      case 'payroll': return <PayrollWorkspace />;
       case 'reporting-hierarchy': return <ReportingHierarchyHub />;
       case 'eim': return <EIMManagementHub onNavigate={navigate} />;
       case 'invite': return <InviteForm onNavigate={navigate} onInviteSent={() => { }} />;

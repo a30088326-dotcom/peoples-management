@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Users, Briefcase, Settings, 
   ChevronRight, LogOut, User, ClipboardList, Target,
-  ShieldCheck, CalendarDays, Clock, CheckCircle2, Shield, Database, Network, Menu
+  ShieldCheck, CalendarDays, Clock, CheckCircle2, Shield, Database, Network, Menu, Wallet
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Screen } from '../types';
@@ -40,6 +40,12 @@ const NAV_STRUCTURE = [
     group: 'Attendance Management',
     items: [
       { id: 'attendance', label: 'Attendance & Roster', icon: <Clock size={18} />, roles: ['ADMIN'], moduleId: 'attendance_management' }
+    ]
+  },
+  {
+    group: 'Payroll Management',
+    items: [
+      { id: 'payroll', label: 'Payroll', icon: <Wallet size={18} />, roles: ['SUPER_ADMIN'], moduleId: 'payroll_management' }
     ]
   },
   {
@@ -177,6 +183,9 @@ export default function UnifiedLayout({ currentScreen, onNavigate, children }: U
   // ── Sidebar item visibility logic ──────────────────────────────────────────
   const isItemVisible = (item: any) => {
     if (!user) return false;
+    if (item.id === 'payroll') return user.role === 'SUPER_ADMIN' || Boolean(user.permissions?.some(permission =>
+      permission.moduleId === 'payroll_management' && permission.moduleAccess && permission.canView &&
+      ['ALL', 'ORGANIZATION'].includes(permission.dataScope)));
     if (item.id === 'assistant-admin') return user.role === 'SUPER_ADMIN';
     if (item.id === 'reporting-hierarchy') return ['ADMIN', 'EMPLOYEE', 'SUPER_ADMIN'].includes(user.role);
 

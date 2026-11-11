@@ -714,6 +714,12 @@ export const tableDefinitions = {
       "type": "S"
     }
   },
+  "payroll_records": {
+    "partitionKey": {
+      "name": "id",
+      "type": "S"
+    }
+  },
   "hr_assistant_collections": {
     "partitionKey": {
       "name": "id",

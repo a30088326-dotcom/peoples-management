@@ -12,6 +12,7 @@ const MODULES_CONFIG = [
   { id: 'reporting_hierarchy',   name: 'Reporting Hierarchy',     icon: '🗂️', v: true,  c: false, e: true,  d: false, a: false, x: false },
   { id: 'leave_management',      name: 'Leave Management',        icon: '🌴', v: true,  c: true,  e: true,  d: false, a: true,  x: true  },
   { id: 'attendance_management', name: 'Attendance & Roster',     icon: '🕐', v: true,  c: true,  e: true,  d: false, a: false, x: true  },
+  { id: 'payroll_management',    name: 'Payroll Management',      icon: '💼', v: false, c: false, e: false, d: false, a: false, x: false },
   { id: 'self_service',          name: 'Self Service',            icon: '🙋', v: true,  c: false, e: false, d: false, a: false, x: false },
 ];
 

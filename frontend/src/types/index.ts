@@ -17,6 +17,7 @@ export type Screen =
   | 'reporting-hierarchy'
   | 'leave-management'
   | 'attendance'
+  | 'payroll'
   | 'eim'
   | 'executive-request-center'
   | 'team-attendance';
