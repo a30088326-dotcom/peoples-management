@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { Screen } from '@/types';
 import ShiftManagement from '../components/ShiftManagement';
-import RosterGroups from '../components/RosterGroups';
+import RosterWorkspace from '../components/roster-planner/RosterWorkspace';
 
 import AttendanceDashboard from '../components/AttendanceDashboard';
 import AttendanceRecords from '../components/AttendanceRecords';
@@ -43,7 +43,7 @@ export default function AttendanceManagementHub({ onNavigate }: Props) {
     switch (activeTab) {
       case 'dashboard': return <AttendanceDashboard />;
       case 'shifts': return <ShiftManagement />;
-      case 'roster-groups': return <RosterGroups />;
+      case 'roster-groups': return <RosterWorkspace />;
       case 'records': return <AttendanceRecords />;
       case 'exceptions': return <AttendanceExceptions />;
       case 'reports': return <AttendanceReports />;

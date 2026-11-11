@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { db } from '../../lib/db';
 import { RowDataPacket } from 'mysql2';
 import { v4 as uuidv4 } from 'uuid';
+import { memberCalendar, readPlan } from './roster-planner/pattern';
 import { organizationAccess } from '../../shared/services/organization.service';
 import { monthlyAttendance } from './attendance-scope.service';
 import { dashboardFor, localToday } from '../../shared/services/dashboard.service';
@@ -189,28 +190,30 @@ export const getRosterGroups = async (req: Request, res: Response) => {
        JOIN employee_information_employees e ON e.id=a.employeeId
        WHERE (a.groupId=g.id OR a.rosterGroupId=g.id) AND a.status='Active') AS employeeCount
       FROM attendance_roster_groups g ORDER BY g.createdAt DESC`);
-    for (let i = 0; i < rows.length; i++) {
+    const legacyRows = rows.filter(row => !row.schedulePlan);
+    for (let i = 0; i < legacyRows.length; i++) {
+      const roster = legacyRows[i];
       try {
-        rows[i].applicableEmploymentTypes = rows[i].applicableEmploymentTypes ? JSON.parse(rows[i].applicableEmploymentTypes) : [];
+        roster.applicableEmploymentTypes = roster.applicableEmploymentTypes ? JSON.parse(roster.applicableEmploymentTypes) : [];
       } catch {
-        rows[i].applicableEmploymentTypes = rows[i].applicableEmploymentTypes ? rows[i].applicableEmploymentTypes.split(',').map((s: string) => s.trim()) : [];
+        roster.applicableEmploymentTypes = roster.applicableEmploymentTypes ? roster.applicableEmploymentTypes.split(',').map((s: string) => s.trim()) : [];
       }
       const [shiftsRows] = await db.query<RowDataPacket[]>(
         `SELECT s.*, m.isDefault, m.displayOrder 
          FROM attendance_roster_group_shifts m 
          JOIN attendance_shifts s ON m.shiftId = s.id 
          WHERE m.groupId = ? OR m.rosterGroupId = ? ORDER BY m.displayOrder ASC`,
-        [rows[i].id, rows[i].id]
+        [roster.id, roster.id]
       );
-      rows[i].shifts = shiftsRows;
+      roster.shifts = shiftsRows;
       const [calendarRows] = await db.query<RowDataPacket[]>(
         `SELECT DATE_FORMAT(date, '%Y-%m-%d') AS date, shiftId, isOffDay
          FROM attendance_roster_calendars WHERE rosterGroupId = ? ORDER BY date`,
-        [rows[i].id]
+        [roster.id]
       );
-      rows[i].calendarAssignments = calendarRows;
+      roster.calendarAssignments = calendarRows;
     }
-    return res.json({ success: true, data: rows });
+    return res.json({ success: true, data: legacyRows });
   } catch (error: any) {
     console.error('Error fetching roster groups:', error);
     return res.status(500).json({ success: false, message: 'Server Error' });
@@ -290,7 +293,8 @@ export const updateRosterGroup = async (req: Request, res: Response) => {
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
-      const [existing] = await connection.query<RowDataPacket[]>('SELECT id FROM attendance_roster_groups WHERE id=? FOR UPDATE', [id]);
+      const [existing] = await connection.query<RowDataPacket[]>('SELECT * FROM attendance_roster_groups WHERE id=? FOR UPDATE', [id]);
+      if (existing[0]?.schedulePlan) throw new RosterError(409, 'Edit this roster in the roster planner.');
       if (!existing.length) throw new RosterError(404, 'Roster not found.');
       if (!String(name || '').trim()) throw new RosterError(400, 'Enter a roster name.');
       const [currentShifts] = await connection.query<RowDataPacket[]>('SELECT shiftId,isDefault FROM attendance_roster_group_shifts WHERE groupId=? OR rosterGroupId=?', [id,id]);
@@ -367,7 +371,11 @@ export const deleteRosterGroup = async (req: Request, res: Response) => {
     await connection.beginTransaction();
     // Assignment and edit flows lock this same parent, preventing new links during deletion.
     const [rosters] = await connection.query<RowDataPacket[]>(
-      'SELECT id,name FROM attendance_roster_groups WHERE id=? FOR UPDATE', [id]);
+      'SELECT * FROM attendance_roster_groups WHERE id=? FOR UPDATE', [id]);
+    if (rosters[0]?.schedulePlan) {
+      await connection.rollback();
+      return res.status(409).json({ success: false, message: 'This roster is managed by the roster planner.' });
+    }
     if (!rosters.length) {
       await connection.rollback();
       return res.status(404).json({ success: false, message: 'Roster not found or already deleted. Refresh the roster list.' });
@@ -703,7 +711,7 @@ export const getMyShift = async (req: Request, res: Response) => {
     const employeeId = empRows[0].id;
 
     const [assignmentRows] = await db.query<RowDataPacket[]>(
-      `SELECT g.id, g.name, g.description, g.rosterCycle
+      `SELECT g.*
        FROM attendance_roster_assignments a
        JOIN attendance_roster_groups g ON COALESCE(a.groupId, a.rosterGroupId) = g.id
        WHERE a.employeeId = ? AND a.status = 'Active'
@@ -719,6 +727,13 @@ export const getMyShift = async (req: Request, res: Response) => {
 
     const group = assignmentRows[0];
     const groupId = group.id;
+    const plan = readPlan(group);
+    if (plan) {
+      const calendarAssignments = memberCalendar(plan, employeeId);
+      const ids = [...new Set(calendarAssignments.flatMap(day => day.shiftId ? [day.shiftId] : []))];
+      const [shifts] = ids.length ? await db.query<RowDataPacket[]>('SELECT * FROM attendance_shifts WHERE id IN (?)', [ids]) : [[]];
+      return res.json({ success: true, data: { id: groupId, name: plan.name, rosterCycle: group.rosterCycle, shifts, calendarAssignments } });
+    }
     const [shiftsRows] = await db.query<RowDataPacket[]>(
       `SELECT s.*, m.isDefault, m.displayOrder 
        FROM attendance_roster_group_shifts m 

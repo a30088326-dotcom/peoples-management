@@ -46,7 +46,7 @@ export async function organizationAccess(userId: string) {
   const isExecutive = rank === 'OWNER' || rank === 'CEO';
   const teamIds = descendants(employees, own?.id || null);
   return { employeeId: own?.id || null, organizationalRank: rank, isOwner: rank === 'OWNER', isExecutive,
-    isManager: teamIds.length > 0, admin, employees, teamIds,
+    isManager: teamIds.length > 0, admin, superAdmin: rows[0]?.role === 'SUPER_ADMIN', employees, teamIds,
     visibleIds: admin || isExecutive ? employees.filter(e => e.active).map(e => e.id) : [own?.id, ...teamIds].filter(Boolean) as string[] };
 }
 

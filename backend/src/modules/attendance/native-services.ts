@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { RepositorySession } from '../../storage/repository';
 import { attendanceDateTime, attendanceDate, attendanceTimestamp, calculateAttendance } from './calculation.service';
-import { RosterError, validRosterDate } from './roster.service';
+import { RosterError, validRosterDate, overlapsAssignment } from './roster-validation';
+import { OFF, plannedDay, readPlan } from './roster-planner/pattern';
 
 export async function rosterDefaultNative(tx:RepositorySession,groupId:string) {
   const group=await tx.get('attendance_roster_groups',{id:groupId});
   if(!group||!['Active','Draft'].includes(group.status))throw new RosterError(400,'Selected roster is unavailable.');
+  if (group.schedulePlan) throw new RosterError(409, 'Manage this roster from the roster calendar.');
   const maps=await tx.find('attendance_roster_group_shifts',r=>(r.groupId===groupId||r.rosterGroupId===groupId)&&!!r.isDefault);
   const shifts=await Promise.all(maps.map(r=>tx.get('attendance_shifts',{id:r.shiftId})));
   if(shifts.length!==1||!shifts[0])throw new RosterError(400,'Configure exactly one default shift for this roster before assigning employees.');
@@ -18,7 +20,14 @@ export async function assignRosterNative(tx:RepositorySession,employeeId:string,
   if(!employee||employee.status!=='Active'||employee.isActive===0)throw new RosterError(400,'Employee is inactive or does not exist.');
   // Version this aggregate so concurrent assignments and punches cannot both commit from the same snapshot.
   await tx.replace('employee_information_employees',{...employee,updatedAt:attendanceDateTime(new Date())});
-  const previous=await tx.find('attendance_roster_assignments',r=>r.employeeId===employeeId&&r.status==='Active');
+  const active=await tx.find('attendance_roster_assignments',r=>r.employeeId===employeeId&&r.status==='Active');
+  const previous=[];
+  for (const row of active) {
+    const priorGroup = row.groupId || row.rosterGroupId;
+    const roster = priorGroup ? await tx.get('attendance_roster_groups', { id: priorGroup }) : undefined;
+    if (!roster?.schedulePlan) previous.push(row);
+    else if (overlapsAssignment(row, start, end)) throw new RosterError(409, 'This employee has a published roster in the requested date range.');
+  }
   if(previous.some(r=>r.effectiveStartDate&&String(r.effectiveStartDate)>start))throw new RosterError(409,'A later roster assignment already exists. Choose a date on or after that assignment.');
   const prior=new Date(start+'T12:00:00Z');prior.setUTCDate(prior.getUTCDate()-1);const before=prior.toISOString().slice(0,10);
   for(const row of previous) {const date=String(row.effectiveStartDate||row.effectiveFrom||start);const until=date>before?date:before;await tx.replace('attendance_roster_assignments',{...row,status:'Inactive',effectiveEndDate:until,effectiveTo:until});}
@@ -39,6 +48,11 @@ export async function shiftForDateNative(tx:RepositorySession,employeeId:string,
   if(savedShiftId){const saved=await tx.get('attendance_shifts',{id:savedShiftId});if(saved)return saved;}
   const assignment=await assignmentForDateNative(tx,employeeId,date);if(!assignment)return null;
   const groupId=assignment.groupId||assignment.rosterGroupId;
+  const plan = groupId ? readPlan(await tx.get('attendance_roster_groups', { id: groupId })) : undefined;
+  if (plan) {
+    const day = plannedDay(plan, employeeId, date);
+    return day && day.shiftId !== OFF ? await tx.get('attendance_shifts', { id: day.shiftId }) || null : null;
+  }
   const calendar=(await tx.find('attendance_roster_calendars',r=>r.rosterGroupId===groupId&&String(r.date).slice(0,10)===date))[0];
   if(calendar?.isOffDay)return null;
   if(calendar?.shiftId)return await tx.get('attendance_shifts',{id:calendar.shiftId})||null;

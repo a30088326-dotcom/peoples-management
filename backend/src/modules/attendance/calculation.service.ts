@@ -1,5 +1,6 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import type { RepositorySession } from '../../storage/repository';
+import { OFF, plannedDay, readPlan } from './roster-planner/pattern';
 import { shiftForDateNative, workingDateNative, workingLogsNative, saveAttendanceNative } from './native-services';
 
 const offset = 330 * 60000;
@@ -26,6 +27,14 @@ export async function shiftForDate(connection: PoolConnection | RepositorySessio
     AND COALESCE(effectiveStartDate,effectiveFrom)<=? AND (COALESCE(effectiveEndDate,effectiveTo) IS NULL OR COALESCE(effectiveEndDate,effectiveTo)>=?)
     ORDER BY COALESCE(effectiveStartDate,effectiveFrom) DESC,a.createdAt DESC LIMIT 1`, [employeeId,date,date]);
   if (!assignment) return null;
+  const [[roster]] = await connection.query<RowDataPacket[]>('SELECT * FROM attendance_roster_groups WHERE id=?', [assignment.roster]);
+  const plan = readPlan(roster);
+  if (plan) {
+    const day = plannedDay(plan, employeeId, date);
+    if (!day || day.shiftId === OFF) return null;
+    const [[shift]] = await connection.query<RowDataPacket[]>('SELECT * FROM attendance_shifts WHERE id=?', [day.shiftId]);
+    return shift || null;
+  }
   const [[calendar]] = await connection.query<RowDataPacket[]>('SELECT shiftId,isOffDay FROM attendance_roster_calendars WHERE rosterGroupId=? AND date=? LIMIT 1',[assignment.roster,date]);
   if (calendar?.isOffDay) return null;
   const [[shift]] = await connection.query<RowDataPacket[]>(calendar?.shiftId

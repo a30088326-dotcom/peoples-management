@@ -118,6 +118,7 @@ CREATE TABLE `attendance_roster_groups` (
   `maxConsecutiveDays` int DEFAULT '6',
   `maxWeeklyHours` decimal(10,2) DEFAULT NULL,
   `lockPeriod` int DEFAULT '0',
+  `schedulePlan` json DEFAULT NULL,
   `status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'Draft',
   `createdAt` datetime DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

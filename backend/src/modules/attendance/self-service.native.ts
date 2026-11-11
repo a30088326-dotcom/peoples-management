@@ -4,6 +4,7 @@ import { repository } from '../../storage/repository';
 import { requireAdmin } from '../../middleware/auth';
 import { attendanceDate, attendanceDateTime, attendanceRange, attendanceTimestamp, saveAttendance, shiftForDate, workingDate, workingLogs } from './calculation.service';
 import { assignmentForDateNative } from './native-services';
+import { memberCalendar, readPlan } from './roster-planner/pattern';
 import { rosterViewNative } from './setup.native';
 import { RosterError } from './roster.service';
 import { nativeRun as run, employeeNative as employee, newestNative as newest } from './native-http';
@@ -39,6 +40,19 @@ router.post('/my-attendance/manual',requireAdmin,run(async(req:any,res:any)=>{
 router.put('/my-attendance/:idOrDate',requireAdmin,run(async(req:any,res:any)=>{
   await repository().transaction(async tx=>{const emp=await employee(tx,req.user.userId);await tx.replace('employee_information_employees',{...emp});const record=(await tx.find('attendance_records',r=>r.employeeId===emp.id&&(r.id===req.params.idOrDate||r.date===(req.body.date||req.params.idOrDate))))[0];if(!record)throw new RosterError(404,'Attendance record not found');let range;try{range=attendanceRange(String(record.date).slice(0,10),req.body.inTime,req.body.outTime);}catch{throw new RosterError(400,'A valid date and different in/out times are required.');}await saveAttendance(tx,record.id,emp.id,record.date,range.inTime,range.outTime,{savedShiftId:record.shiftId,isException:1});});res.json({success:true,message:'Attendance updated successfully'});
 }));
-router.get('/my-shift',run(async(req:any,res:any)=>{const repo=repository(),emp=await employee(repo,req.user.userId),assignment=await assignmentForDateNative(repo,emp.id,attendanceDate(new Date()));const data=assignment?(await rosterViewNative(assignment.groupId||assignment.rosterGroupId))[0]:null;res.json({success:true,data:data||null,...(!data?{message:'No active shift assigned'}:{})});}));
+router.get('/my-shift', run(async (req: any, res: any) => {
+  const repo = repository();
+  const emp = await employee(repo, req.user.userId);
+  const assignment = await assignmentForDateNative(repo, emp.id, attendanceDate(new Date()));
+  if (!assignment) return res.json({ success: true, data: null, message: 'No active shift assigned' });
+  const id = assignment.groupId || assignment.rosterGroupId;
+  const group = await repo.get('attendance_roster_groups', { id });
+  const plan = readPlan(group);
+  if (!plan) return res.json({ success: true, data: (await rosterViewNative(id))[0] || null });
+  const calendarAssignments = memberCalendar(plan, emp.id);
+  const ids = new Set(calendarAssignments.flatMap(day => day.shiftId ? [day.shiftId] : []));
+  const shifts = await repo.find('attendance_shifts', shift => ids.has(shift.id));
+  return res.json({ success: true, data: { id, name: plan.name, rosterCycle: group?.rosterCycle, shifts, calendarAssignments } });
+}));
 router.get('/my-exceptions',run(async(req:any,res:any)=>{const emp=await employee(repository(),req.user.userId);res.json({success:true,data:(await repository().find('attendance_exceptions',r=>r.employeeId===emp.id&&r.exceptionType==='MISSED_PUNCH')).sort(newest)});}));
 export default router;

@@ -3,21 +3,15 @@ import { randomUUID } from 'crypto';
 import type { RepositorySession } from '../../storage/repository';
 import { rosterDefaultNative, assignRosterNative, validateRosterShiftsNative } from './native-services';
 
-export class RosterError extends Error {
-  constructor(public status: number, message: string) { super(message); }
-}
-
-export function validRosterDate(value: unknown): value is string {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
-}
+import { RosterError, validRosterDate, overlapsAssignment } from './roster-validation';
+export { RosterError, validRosterDate } from './roster-validation';
 
 export async function rosterDefault(connection: PoolConnection | RepositorySession, groupId: string) {
   if ('find' in connection) return rosterDefaultNative(connection,groupId);
   const [groups] = await connection.query<RowDataPacket[]>(
-    "SELECT id FROM attendance_roster_groups WHERE id=? AND status IN ('Active','Draft') FOR UPDATE", [groupId]);
+    "SELECT * FROM attendance_roster_groups WHERE id=? AND status IN ('Active','Draft') FOR UPDATE", [groupId]);
   if (!groups.length) throw new RosterError(400, 'Selected roster is unavailable.');
+  if (groups[0].schedulePlan) throw new RosterError(409, 'Manage this roster from the roster calendar.');
   const [shifts] = await connection.query<RowDataPacket[]>(
     `SELECT s.id FROM attendance_roster_group_shifts m JOIN attendance_shifts s ON s.id=m.shiftId
      WHERE (m.groupId=? OR m.rosterGroupId=?) AND m.isDefault=1`, [groupId, groupId]);
@@ -35,16 +29,23 @@ export async function assignRoster(connection: PoolConnection | RepositorySessio
   const [employees] = await connection.query<RowDataPacket[]>(
     "SELECT id FROM employee_information_employees WHERE id=? AND status='Active' AND COALESCE(isActive,1)=1 FOR UPDATE", [employeeId]);
   if (!employees.length) throw new RosterError(400, 'Employee is inactive or does not exist.');
-  const [previous] = await connection.query<RowDataPacket[]>(
-    "SELECT id, effectiveStartDate FROM attendance_roster_assignments WHERE employeeId=? AND status='Active' FOR UPDATE", [employeeId]);
+  const [active] = await connection.query<RowDataPacket[]>(
+    "SELECT * FROM attendance_roster_assignments WHERE employeeId=? AND status='Active' FOR UPDATE", [employeeId]);
+  const groups = [...new Set(active.map(row => row.groupId || row.rosterGroupId).filter(Boolean))];
+  const [rosters] = groups.length ? await connection.query<RowDataPacket[]>('SELECT * FROM attendance_roster_groups WHERE id IN (?)', [groups]) : [[]];
+  const planned = new Set(rosters.filter(row => row.schedulePlan).map(row => row.id));
+  if (active.some(row => planned.has(row.groupId || row.rosterGroupId) && overlapsAssignment(row, start, end))) {
+    throw new RosterError(409, 'This employee has a published roster in the requested date range.');
+  }
+  const previous = active.filter(row => !planned.has(row.groupId || row.rosterGroupId));
   if (previous.some(row => row.effectiveStartDate && String(row.effectiveStartDate) > start)) {
     throw new RosterError(409, 'A later roster assignment already exists. Choose a date on or after that assignment.');
   }
-  await connection.query(
+  if (previous.length) await connection.query(
     `UPDATE attendance_roster_assignments SET status='Inactive',
      effectiveEndDate=GREATEST(COALESCE(effectiveStartDate,effectiveFrom,?),DATE_SUB(?,INTERVAL 1 DAY)),
      effectiveTo=GREATEST(COALESCE(effectiveStartDate,effectiveFrom,?),DATE_SUB(?,INTERVAL 1 DAY)),updatedAt=NOW()
-     WHERE employeeId=? AND status='Active'`, [start, start, start, start, employeeId]);
+     WHERE id IN (?) AND status='Active'`, [start, start, start, start, previous.map(row => row.id)]);
   const id = randomUUID();
   await connection.query(
     `INSERT INTO attendance_roster_assignments

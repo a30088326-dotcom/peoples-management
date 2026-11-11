@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import plannerRoutes from './roster-planner/routes';
 import { repository } from '../../storage/repository';
 import { requireAuth } from '../../middleware/auth';
 import { requireExecutiveReader } from '../../middleware/organization';
@@ -9,7 +10,7 @@ import { nativeRun as run, newestNative as newest } from './native-http';
 import setupRoutes from './setup.native';
 import selfServiceRoutes from './self-service.native';
 import exceptionRoutes from './exceptions.native';
-const router=Router();router.use(requireAuth);router.use(setupRoutes);router.use(selfServiceRoutes);router.use(exceptionRoutes);
+const router=Router();router.use(requireAuth);router.use('/roster-plans',plannerRoutes);router.use(setupRoutes);router.use(selfServiceRoutes);router.use(exceptionRoutes);
 router.get('/dashboard',run(async(req:any,res:any)=>res.json({success:true,data:(await dashboardFor(req.user.userId)).attendance})));
 router.get('/records',run(async(req:any,res:any)=>{const access=await organizationAccess(req.user.userId),from=String(req.query.from||'1900-01-01'),to=String(req.query.to||'2100-12-31'),[rows,shifts]=await Promise.all([repository().find('attendance_records',r=>access.visibleIds.includes(r.employeeId)&&r.date>=from&&r.date<=to),repository().find('attendance_shifts',()=>true)]);res.json({success:true,data:rows.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>{const e=access.employees.find(e=>e.id===r.employeeId);return {...r,employeeNo:e?.employeeNumber,employeeName:e?.name||'Unknown Employee',shiftName:shifts.find(s=>s.id===r.shiftId)?.name};})});}));
 router.get('/exceptions',run(async(req:any,res:any)=>{const access=await organizationAccess(req.user.userId);res.json({success:true,data:(await repository().find('attendance_exceptions',r=>access.visibleIds.includes(r.employeeId))).sort(newest)});}));

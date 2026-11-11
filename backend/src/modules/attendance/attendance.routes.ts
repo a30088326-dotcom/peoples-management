@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import plannerRoutes from './roster-planner/routes';
 import { 
   getShifts, 
   createShift, 
@@ -36,6 +37,7 @@ const router = Router();
 
 // Apply auth to all attendance routes
 router.use(requireAuth);
+router.use('/roster-plans', plannerRoutes);
 
 // Shifts
 router.get('/shifts', getShifts);
