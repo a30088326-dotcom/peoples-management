@@ -1,0 +1,67 @@
+/* Responsive presentation only: the desktop workspaces and shared data stay intact. */
+@media (max-width: 1023px) {
+  .app-shell, .candidate-shell { height: 100vh; height: 100dvh; }
+  .app-main { height: 100%; }
+  .app-navigation { max-height: calc(100dvh - 24px); border-radius: 24px; }
+  .app-navigation .app-nav-brand { padding-left: 18px; padding-right: 56px; }
+  .app-navigation .app-nav-brand > div { min-width: 0; }
+  .app-navigation .app-nav-brand span:first-child { font-size: 15px; }
+  .mobile-nav-toggle { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  body:has([aria-modal="true"]) .hrbot-floating { visibility: hidden; }
+}
+@media (max-width: 639px) {
+  .app-main > header { padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); }
+  .app-main h1 { font-size: 1.375rem; line-height: 1.25; }
+  .app-main h2 { overflow-wrap: anywhere; }
+  .app-main [class~="p-8"] { padding: 16px; }
+  .app-main [class~="px-8"] { padding-left: 16px; padding-right: 16px; }
+  .app-main [class~="gap-8"] { gap: 16px; }
+  .workspace-scroll { scrollbar-gutter: auto; scroll-padding: 16px 16px 80px; }
+  .app-shell input:not([type="checkbox"]):not([type="radio"]), .app-shell select, .app-shell textarea,
+  .candidate-shell input:not([type="checkbox"]):not([type="radio"]), .candidate-shell select, .candidate-shell textarea {
+    min-width: 0; max-width: 100%; font-size: 16px;
+  }
+  .app-main button:not(.rdp-button):not([role="gridcell"]) { min-height: 40px; }
+  .app-shell [role="dialog"], .app-shell dialog { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+  .app-shell .leave-request-panel { max-width: 100vw; max-height: 100dvh; height: 100dvh; }
+  .leave-balance-summary h4 { margin-bottom: 12px; }
+  .leave-balance-summary .border-t { border-top: 0; padding-top: 0; }
+  .leave-balance-summary .text-2xl, .leave-balance-summary .text-3xl { font-size: 1.4rem; line-height: 1.3; }
+  .leave-balance-summary > .mt-auto { margin-top: 12px; padding: 10px; }
+  .leave-request-panel .rdp { --rdp-cell-size: 32px; margin: 0; }
+  .eim-stat-card { padding: 12px; gap: 8px; min-height: 92px; border-radius: 16px; }
+  .eim-stat-icon { width: 36px; height: 36px; }
+  .eim-stat-icon svg { width: 20px; height: 20px; }
+  .eim-stat-card .text-sm { font-size: 11px; line-height: 1.4; }
+  .dashboard-metric-card { padding: 14px; }
+  .dashboard-metric-card .w-12 { width: 36px; height: 36px; }
+  .dashboard-metric-card .text-4xl { font-size: 1.75rem; }
+  .dashboard-metric-card .mb-4 { margin-bottom: 10px; }
+  .onboarding-flow .card { padding: 20px; border-radius: 20px; }
+  .candidate-shell > header { padding-left: 16px; padding-right: 16px; }
+  .candidate-shell .step-ring { width: 34px; height: 34px; }
+  .responsive-data-table { display: block; width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  .responsive-data-table th, .responsive-data-table td { min-width: 96px; }
+  .responsive-records-table { display: block; width: 100%; padding: 12px; }
+  .responsive-records-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .responsive-records-table tbody { display: grid; gap: 12px; }
+  .responsive-records-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 16px; background: white; }
+  .responsive-records-table td { display: block; min-width: 0; padding: 0; text-align: left; overflow-wrap: anywhere; }
+  .responsive-records-table td:first-child, .responsive-records-table td[colspan] { grid-column: 1 / -1; }
+  .responsive-records-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; color: #64748b; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .responsive-records-table td:first-child::before { display: none; }
+  .responsive-records-table td > div { min-width: 0; }
+  .responsive-records-table td > div > div:first-child { flex-shrink: 0; }
+  .app-main[data-current-module="performance"] [class*="grid-cols-["] { grid-template-columns: minmax(0, 1fr); }
+  .app-main[data-current-module="self_service"] .text-4xl, .app-main[data-current-module="self_service"] .text-5xl { font-size: 1.75rem; line-height: 1.2; }
+  body:has(.holiday-calendar-footer) .hrbot-floating:not(:has(header)) { bottom: 110px; }
+  .hrbot-floating { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
+  .hrbot .hrbot-floating button.hrbot-launcher { width: 52px; height: 52px; padding: 0; }
+  .hrbot-launcher > svg { width: 26px; height: 26px; flex-shrink: 0; }
+  body:has(.employee-form-actions) .hrbot-floating:not(:has(header)) { bottom: 76px; }
+  .hrbot-launcher > span { display: none; }
+  .hrbot-floating:has(header), .hrbot-floating.hrbot-expanded { width: calc(100vw - 24px); height: min(680px, calc(100dvh - 24px)); bottom: 12px; }
+  .hrbot-floating header { padding: 12px; }
+  .hrbot-floating header > span { min-width: 0; font-size: 12px; }
+  .hrbot-floating header > div { flex-shrink: 0; }
+}

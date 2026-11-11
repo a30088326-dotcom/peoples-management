@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-electron/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+*.bak
+*.tsbuildinfo
+.DS_Store

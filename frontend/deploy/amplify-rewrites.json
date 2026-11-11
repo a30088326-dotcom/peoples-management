@@ -1,0 +1,17 @@
+[
+  {
+    "source": "/api/health",
+    "target": "https://pe-f9a092846a344551a54852433c65a3db.ecs.ap-southeast-2.on.aws/health",
+    "status": "200"
+  },
+  {
+    "source": "/api/<*>",
+    "target": "https://pe-f9a092846a344551a54852433c65a3db.ecs.ap-southeast-2.on.aws/api/<*>",
+    "status": "200"
+  },
+  {
+    "source": "</^[^.]+$|\\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|woff|woff2|ttf|map|json|webp|avif|pdf)$)([^.]+$)/>",
+    "target": "/index.html",
+    "status": "200"
+  }
+]

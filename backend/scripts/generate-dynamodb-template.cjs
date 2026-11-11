@@ -1,0 +1,94 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+
+const root = path.resolve(__dirname, '..');
+const manifest = JSON.parse(fs.readFileSync(path.join(root, 'database/schema-manifest.json'), 'utf8'));
+const sql = fs.readFileSync(path.join(root, 'database/schema.sql'), 'utf8');
+const definitions = [...sql.matchAll(/CREATE TABLE `([^`]+)` \(([\s\S]*?)\) ENGINE=/g)];
+assert.equal(definitions.length, manifest.tables.length, 'Every source entity needs a DynamoDB table');
+
+const tables = definitions.map(([, name, body]) => {
+  const primary = body.match(/PRIMARY KEY \(([^)]+)\)/);
+  assert(primary, `Missing primary key: ${name}`);
+  const keys = [...primary[1].matchAll(/`([^`]+)`/g)].map((match) => {
+    const column = match[1];
+    const type = body.split('\n').map(line => line.trim()).find(line => line.startsWith('`' + column + '` '));
+    assert(type, `Missing key column: ${name}.${column}`);
+    return { name: column, type: /^`[^`]+` (tinyint|smallint|mediumint|int|bigint|decimal|float|double)\b/i.test(type) ? 'N' : 'S' };
+  });
+  assert(keys.length >= 1 && keys.length <= 2, `Unsupported key: ${name}`);
+  return { name, partitionKey: keys[0], ...(keys[1] ? { sortKey: keys[1] } : {}) };
+});
+assert.deepEqual(tables.map(table => table.name).sort(), [...manifest.tables].sort());
+manifest.foreignKeys = definitions.flatMap(([, tableName, body]) =>
+  [...body.matchAll(/CONSTRAINT `([^`]+)` FOREIGN KEY \(`([^`]+)`\) REFERENCES `([^`]+)` \(`([^`]+)`\)/g)]
+    .map(([, constraintName, columnName, referencedTable, referencedColumn]) => ({ tableName, columnName, constraintName, referencedTable, referencedColumn }))
+).sort((a, b) => a.tableName.localeCompare(b.tableName) || a.columnName.localeCompare(b.columnName));
+fs.writeFileSync(path.join(root, 'database/schema-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+const entitySchemas = Object.fromEntries(definitions.map(([, name, body]) => {
+  const columns = [...body.matchAll(/^\s*`([^`]+)`\s+([^\n]+)/gm)].map(([, column, definition]) => {
+    const match = definition.match(/\bDEFAULT\s+('(\\.|[^'])*'|NULL|CURRENT_TIMESTAMP(?:\(\d+\))?|[-\d.]+)/i);
+    let value = null;
+    if (match) {
+      if (/^CURRENT_TIMESTAMP/i.test(match[1])) value = '__current_timestamp__';
+      else if (match[1].startsWith("'")) value = match[1].slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+      else if (match[1] !== 'NULL') value = Number(match[1]);
+    }
+    return [column, { type: definition.split(/[ (]/)[0].toLowerCase(), default: value, autoUpdate: /ON UPDATE CURRENT_TIMESTAMP/i.test(definition) }];
+  });
+  const uniqueKeys = [...body.matchAll(/UNIQUE KEY `[^`]+` \(([^)]+)\)/g)]
+    .map(([, fields]) => [...fields.matchAll(/`([^`]+)`/g)].map(match => match[1]));
+  return [name, { columns: Object.fromEntries(columns), uniqueKeys }];
+}));
+
+const Resources = Object.fromEntries(tables.map((table) => {
+  const keys = [table.partitionKey, table.sortKey].filter(Boolean);
+  return ['Table' + table.name.split('_').map(part => part[0].toUpperCase() + part.slice(1)).join(''), {
+    Type: 'AWS::DynamoDB::Table',
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: {
+      TableName: { 'Fn::Sub': '${TablePrefix}-' + table.name },
+      BillingMode: 'PAY_PER_REQUEST',
+      DeletionProtectionEnabled: true,
+      AttributeDefinitions: keys.map(key => ({ AttributeName: key.name, AttributeType: key.type })),
+      KeySchema: keys.map((key, i) => ({ AttributeName: key.name, KeyType: i === 0 ? 'HASH' : 'RANGE' })),
+      OnDemandThroughput: {
+        // Shared designation lookups exceeded the generic 10-unit read cap in production.
+        MaxReadRequestUnits: { Ref: table.name === 'designations' ? 'DesignationsMaxReadRequestUnits' : 'MaxReadRequestUnits' },
+        MaxWriteRequestUnits: { Ref: 'MaxWriteRequestUnits' },
+      },
+      Tags: [{ Key: 'Application', Value: 'PeoplesManagement' }, { Key: 'Entity', Value: table.name }],
+    },
+  }];
+}));
+
+const template = {
+  AWSTemplateFormatVersion: '2010-09-09',
+  Description: `Peoples Management: ${tables.length} separate DynamoDB tables. No IAM permissions, API or application deployment.`,
+  Parameters: {
+    TablePrefix: { Type: 'String', Default: 'peoples-management', AllowedPattern: '[a-zA-Z0-9_.-]+', MaxLength: 170 },
+    MaxReadRequestUnits: { Type: 'Number', Default: 10, MinValue: 1, Description: 'Maximum read request units per second per table (best-effort throttle, not a spending limit).' },
+    DesignationsMaxReadRequestUnits: { Type: 'Number', Default: 100, MinValue: 1, Description: 'Maximum read request units per second for shared designation lookups.' },
+    MaxWriteRequestUnits: { Type: 'Number', Default: 10, MinValue: 1, Description: 'Maximum write request units per second per table (best-effort throttle, not a spending limit).' },
+  },
+  Resources,
+  Outputs: {
+    TableCount: { Value: String(tables.length) },
+    TablePrefix: { Value: { Ref: 'TablePrefix' } },
+    Region: { Value: { Ref: 'AWS::Region' } },
+  },
+};
+fs.mkdirSync(path.join(root, 'infrastructure'), { recursive: true });
+fs.writeFileSync(path.join(root, 'infrastructure/dynamodb-tables.json'), JSON.stringify(template));
+fs.writeFileSync(path.join(root, 'database/dynamodb-tables.json'), JSON.stringify({ tables }, null, 2) + '\n');
+fs.mkdirSync(path.join(root, 'src/storage'), { recursive: true });
+fs.writeFileSync(path.join(root, 'src/storage/table-definitions.ts'),
+  '// Generated by scripts/generate-dynamodb-template.cjs.\n' +
+  'export const tableDefinitions = ' + JSON.stringify(Object.fromEntries(tables.map(table => [table.name, {
+    partitionKey: table.partitionKey, ...(table.sortKey ? { sortKey: table.sortKey } : {}),
+  }])), null, 2) + ' as const;\n' +
+  'export type EntityName = keyof typeof tableDefinitions;\n');
+fs.writeFileSync(path.join(root, 'src/storage/entity-schemas.json'), JSON.stringify(entitySchemas));
+console.log(`Generated ${tables.length} separate DynamoDB tables (${Buffer.byteLength(JSON.stringify(template))} bytes).`);
