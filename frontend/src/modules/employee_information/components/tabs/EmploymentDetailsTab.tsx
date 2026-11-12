@@ -149,6 +149,15 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
       <div>
         <h3 className="text-sm font-bold text-slate-700 mb-4 border-b pb-2">Employment Details</h3>
 
+        <label className="mb-4 flex w-fit items-center gap-2 text-sm font-medium text-slate-700">
+          <input
+            type="checkbox"
+            checked={data?.payrollActive ?? true}
+            onChange={event => handleChange('payrollActive', event.target.checked)}
+          />
+          Enable for Payroll
+        </label>
+
         <div className="mb-4"><label className="text-xs font-bold text-slate-500 mb-1 block">Organizational rank (separate from job designation)</label><select aria-label="Organizational rank" className="p-2 border border-slate-200 rounded-lg bg-white" value={data?.organizationalRank || 'EMPLOYEE'} onChange={e=>handleChange('organizationalRank',e.target.value)}>{['OWNER','CEO','DIRECTOR','DEPARTMENT_HEAD','MANAGER','TEAM_LEAD','SENIOR','EMPLOYEE'].map(rank=><option key={rank} value={rank}>{rank.replace(/_/g,' ')}</option>)}</select></div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div>
