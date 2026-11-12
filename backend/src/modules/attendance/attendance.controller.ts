@@ -186,6 +186,7 @@ export const deleteShift = async (req: Request, res: Response) => {
 export const getRosterGroups = async (req: Request, res: Response) => {
   try {
     const [rows] = await db.query<RowDataPacket[]>(`SELECT g.*,
+      EXISTS(SELECT 1 FROM attendance_roster_assignments a WHERE a.groupId=g.id OR a.rosterGroupId=g.id) AS hasAssignmentHistory,
       (SELECT COUNT(DISTINCT a.employeeId) FROM attendance_roster_assignments a
        JOIN employee_information_employees e ON e.id=a.employeeId
        WHERE (a.groupId=g.id OR a.rosterGroupId=g.id) AND a.status='Active') AS employeeCount
@@ -362,7 +363,6 @@ export const updateRosterGroup = async (req: Request, res: Response) => {
 // ROSTER ASSIGNMENTS
 // ==========================================
 
-// Remove only this roster's relationships; shared shifts and employee/attendance records stay intact.
 export const deleteRosterGroup = async (req: Request, res: Response) => {
   let connection: Awaited<ReturnType<typeof db.getConnection>> | undefined;
   try {
@@ -380,16 +380,19 @@ export const deleteRosterGroup = async (req: Request, res: Response) => {
       await connection.rollback();
       return res.status(404).json({ success: false, message: 'Roster not found or already deleted. Refresh the roster list.' });
     }
-    const [assignments] = await connection.query<RowDataPacket[]>(
-      'SELECT id,employeeId FROM attendance_roster_assignments WHERE groupId=? OR rosterGroupId=? FOR UPDATE', [id,id]);
-    await connection.query('DELETE FROM attendance_roster_assignments WHERE groupId=? OR rosterGroupId=?', [id,id]);
+    const [[assignment]] = await connection.query<RowDataPacket[]>(
+      'SELECT id FROM attendance_roster_assignments WHERE groupId=? OR rosterGroupId=? LIMIT 1 FOR UPDATE', [id,id]);
+    if (assignment) {
+      await connection.rollback();
+      return res.status(409).json({ success: false, message: 'This roster has employee assignment history and cannot be deleted.' });
+    }
     await connection.query('DELETE FROM attendance_roster_calendars WHERE rosterGroupId=?', [id]);
     await connection.query('DELETE FROM attendance_roster_group_shifts WHERE groupId=? OR rosterGroupId=?', [id,id]);
     await connection.query('DELETE FROM attendance_roster_groups WHERE id=?', [id]);
     await connection.commit();
     return res.json({ success: true,
-      message: 'Roster deleted with all employee assignments, calendar dates and shift mappings. Employee records, attendance history and shared shifts have not been deleted.',
-      data: { id, removedAssignments: assignments.length, affectedEmployees: new Set(assignments.map(a => a.employeeId)).size }
+      message: 'Unused roster deleted.',
+      data: { id, removedAssignments: 0, affectedEmployees: 0 }
     });
   } catch (error) {
     await connection?.rollback();

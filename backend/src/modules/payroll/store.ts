@@ -1,7 +1,7 @@
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { db } from '../../lib/db';
 import { repository, type RepositorySession } from '../../storage/repository';
-import type { Reader } from '../attendance/roster-planner/store';
+import type { Reader, Row } from '../attendance/roster-planner/store';
 
 export class PayrollError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -12,11 +12,16 @@ type RecordInput = Omit<RecordRow, '_version'>;
 export type PayrollStore = Reader & {
   get: (id: string) => Promise<RecordRow | undefined>;
   records: (kind: RecordType) => Promise<RecordRow[]>;
+  punches: (employees: Set<string>, from: string, until: string) => Promise<Row[]>;
   put: (row: RecordInput, expected?: RecordRow) => Promise<RecordRow>;
 };
 function native(read: RepositorySession, write = read): PayrollStore {
   return {
     list: (entity, filter = () => true) => read.find(entity, filter),
+    punches: (employees, from, until) => read.find('attendance_raw_logs', row => {
+      const date = String(row.timestamp ?? '').slice(0, 10);
+      return employees.has(row.employeeId) && date >= from && date < until;
+    }),
     get: async id => await write.get('payroll_records', { id }) as RecordRow | undefined,
     records: async kind => await read.find('payroll_records', row => row.kind === kind) as RecordRow[],
     put: async (row, expected) => expected
@@ -29,7 +34,12 @@ function unpack(row?: RowDataPacket): RecordRow | undefined {
 }
 function sql(connection: Pool | PoolConnection, transaction = false): PayrollStore {
   return {
-    list: async (entity, filter = () => true) => (await connection.query<RowDataPacket[]>('SELECT * FROM ??', [entity]))[0].filter(filter),
+    list: async (entity, filter = () => true) =>
+      (await connection.query<RowDataPacket[]>({ sql: 'SELECT * FROM ??', dateStrings: true }, [entity]))[0].filter(filter),
+    punches: async (employees, from, until) => (await connection.query<RowDataPacket[]>({
+      sql: 'SELECT id, employeeId, timestamp, logType, direction FROM attendance_raw_logs WHERE employeeId IN (?) AND timestamp >= ? AND timestamp < ?',
+      dateStrings: true,
+    }, [[...employees], from, until]))[0],
     get: async id => unpack((await connection.query<RowDataPacket[]>(`SELECT * FROM payroll_records WHERE id=?${transaction ? ' FOR UPDATE' : ''}`, [id]))[0][0]),
     records: async kind => (await connection.query<RowDataPacket[]>('SELECT * FROM payroll_records WHERE kind=?', [kind]))[0].map(row => unpack(row)!),
     put: async (row, expected) => {

@@ -51,7 +51,7 @@ export default function RosterGroups() {
       await attendanceApi.deleteRosterGroup(deleteTarget.id);
       setGroups(current => current.filter(group => group.id !== deleteTarget.id));
       setDeleteTarget(null);
-      setSuccess(`“${deleteTarget.name}” deleted. Its employee assignments and calendar have been removed.`);
+      setSuccess(`“${deleteTarget.name}” deleted.`);
       await fetchGroups();
     } catch (err: any) {
       setDeleteError(err.response?.data?.message || 'Could not delete roster. Please try again.');
@@ -96,6 +96,7 @@ export default function RosterGroups() {
           </div>
         ) : (
           groups.map(group => {
+            const hasAssignmentHistory = Boolean(group.hasAssignmentHistory || group.employeeCount);
             const defaultShift = group.shifts?.find(s => s.isDefault) || group.shifts?.[0];
             const workingDays = defaultShift?.weeklyWorkingDays ? (typeof defaultShift.weeklyWorkingDays === 'string' ? JSON.parse(defaultShift.weeklyWorkingDays) : defaultShift.weeklyWorkingDays) : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
             const offDays = defaultShift?.weeklyOffDays ? (typeof defaultShift.weeklyOffDays === 'string' ? JSON.parse(defaultShift.weeklyOffDays) : defaultShift.weeklyOffDays) : ['Sat', 'Sun'];
@@ -120,7 +121,7 @@ export default function RosterGroups() {
                       <button disabled={deleting} aria-label={`Edit ${group.name}`} onClick={() => handleEditClick(group)} className="app-action p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50 app-action-icon">
                         <Edit2 size={16} />
                       </button>
-                      <button disabled={deleting} aria-label={`Delete ${group.name}`} onClick={() => { setDeleteTarget(group); setDeleteError(''); }} className="app-action p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 app-action-icon">
+                      <button disabled={deleting || hasAssignmentHistory} title={hasAssignmentHistory ? 'Rosters with assignment history cannot be deleted' : undefined} aria-label={`Delete ${group.name}`} onClick={() => { setDeleteTarget(group); setDeleteError(''); }} className="app-action p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 app-action-icon">
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -181,17 +182,14 @@ export default function RosterGroups() {
             </div>
             <div id="delete-roster-description" className="p-6 space-y-4 text-sm text-slate-600">
               <p>Permanently delete <strong className="text-slate-800">{deleteTarget.name}</strong>?</p>
-              <div className="p-4 rounded-lg bg-red-50 border border-red-100 text-red-800">
-                All employee assignments, calendar dates and shift mappings for this roster will be removed. Employees currently using it will need a new roster assigned.
-              </div>
-              <p><strong>{deleteTarget.employeeCount || 0}</strong> employees currently assigned. Employee profiles, attendance history and shifts in Shift Management will remain.</p>
+              <p>Only rosters without employee assignment history can be deleted.</p>
               <p className="font-medium text-red-700">This action cannot be undone from this screen.</p>
               {deleteError && <div role="alert" className="text-red-700">{deleteError}</div>}
             </div>
             <div className="p-6 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
               <button disabled={deleting} onClick={() => setDeleteTarget(null)} className="app-action px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 disabled:opacity-50">Cancel</button>
               <button disabled={deleting} onClick={handleDeleteGroup} className="app-action px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium flex items-center gap-2 disabled:opacity-50">
-                {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}{deleting ? 'Deleting…' : 'Delete roster & assignments'}
+                {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}{deleting ? 'Deleting…' : 'Delete roster'}
               </button>
             </div>
           </div>

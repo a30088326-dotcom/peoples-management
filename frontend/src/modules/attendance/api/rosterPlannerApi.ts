@@ -32,6 +32,7 @@ const endpoint = '/api/attendance/roster-plans';
 export const rosterPlannerApi = {
   options: (signal?: AbortSignal) => api.get<ApiResponse<RosterOptions>>(endpoint, { signal }),
   detail: (id: string) => api.get<ApiResponse<RosterDetail>>(`${endpoint}/${id}`),
+  deleteDraft: (id: string, version: number) => api.delete<ApiResponse<{ id: string }>>(`${endpoint}/${id}`, { data: { version } }),
   save: (draft: RosterDraft, previous?: Pick<RosterDetail, 'id' | 'version'>) => previous
     ? api.put<ApiResponse<Saved>>(`${endpoint}/${previous.id}`, { draft, version: previous.version })
     : api.post<ApiResponse<Saved>>(endpoint, draft),

@@ -88,7 +88,7 @@ export default function PayrollWorkspace() {
           <header className="payroll-card-heading"><div><h2>Employee calculations</h2><p>{shown.stale ? 'Inputs changed. Recalculate to save a fresh snapshot.' : approved ? 'Approved snapshot is locked.' : 'Review each employee’s earnings and deductions.'}</p></div>
             <div className="payroll-actions">
               {shown.status === 'draft' && shown.access.canCreate && <button className="btn-primary" disabled={busy || !shown.rulesConfigured || !shown.rows.length || !!needsReview}
-                onClick={() => void run('calculate')}>Calculate payroll</button>}
+                onClick={() => void run('calculate')}>{shown.stale ? 'Recalculate payroll' : 'Calculate payroll'}</button>}
               {shown.status === 'calculated' && shown.access.canEdit && <button className="btn-primary" disabled={busy} onClick={() => void run('submit')}>Submit for review</button>}
               {shown.status === 'submitted' && shown.access.canApprove && <><button className="btn-secondary" disabled={busy} onClick={() => void run('return')}>Return for review</button>
                 <button className="btn-primary" disabled={busy} onClick={() => setApproval(true)}>Review & approve</button></>}
@@ -111,12 +111,12 @@ export default function PayrollWorkspace() {
             <td>{employee.profile ? employee.profile.enabled ? 'Included' : 'Excluded' : 'Setup needed'}</td><td><button className="btn-secondary" disabled={!editable}
               onClick={() => setEditor({ type: 'profile', employee })}>{employee.profile ? 'Edit profile' : 'Set up profile'}</button></td></tr>)}
             {!employees.length && <tr><td colSpan={6}>No payroll-eligible employees match this view.</td></tr>}</tbody></table></div></section>}
-      {tab === 'inputs' && <section className="payroll-card"><header className="payroll-card-heading"><div><h2>Attendance inputs</h2><p>Review roster days, approved leave and recorded hours before calculating.</p></div><button className="btn-secondary" onClick={refresh}>Refresh HR inputs</button></header>
-        {filter}<div className="payroll-table-scroll"><table><thead><tr><th>Employee</th><th>Roster days</th><th>Paid leave</th><th>Unpaid leave</th><th>Worked hours</th><th>Approved OT</th><th>Review status</th><th>Action</th></tr></thead>
+      {tab === 'inputs' && <section className="payroll-card"><header className="payroll-card-heading"><div><h2>Attendance inputs</h2><p>Payable hours reflect shift times, grace periods, breaks and approved paid leave.</p></div><button className="btn-secondary" onClick={refresh}>Refresh HR inputs</button></header>
+        {filter}<div className="payroll-table-scroll"><table><thead><tr><th>Employee</th><th>Roster days</th><th>Paid leave</th><th>Unpaid leave</th><th>Worked hours</th><th>Payable hours</th><th>Recorded OT</th><th>Approved OT</th><th>Review status</th><th>Action</th></tr></thead>
           <tbody>{rows.map(row => <tr key={row.employeeId}><td><strong>{row.name}</strong><small>{row.employeeNumber}</small></td><td>{row.rosterDays}</td><td>{row.paidDays}</td><td>{row.unpaidDays}</td>
-            <td>{row.workedHours}</td><td>{row.input.otHours}</td><td>{row.issues.length ? <ul>{row.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : 'Ready'}</td>
+            <td>{row.workedHours}</td><td>{row.paidHours ?? '—'}</td><td>{row.recordedOt}</td><td>{row.input.otHours}</td><td>{row.issues.length ? <ul>{row.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : 'Ready'}</td>
             <td><button className="btn-secondary" disabled={!editable} onClick={() => setEditor({ type: 'input', row })}>Review inputs</button></td></tr>)}
-            {!rows.length && <tr><td colSpan={8}>Set up salary profiles to import attendance.</td></tr>}</tbody></table></div></section>}
+            {!rows.length && <tr><td colSpan={10}>Set up salary profiles to import attendance.</td></tr>}</tbody></table></div></section>}
       {tab === 'rules' && <section className="payroll-card"><h2>Payroll rules</h2><p>Set effective dates and confirm how this workspace treats earnings and unpaid leave.</p>
         <RulesEditor key={`${month}-${revision}`} rules={shown.rules} month={month} locked={!editable} onSaved={refresh} /></section>}
       {tab === 'payslips' && <section className="payroll-card"><h2>Payslips</h2>

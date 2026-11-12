@@ -102,6 +102,10 @@ test('native shift/roster setup maps employee dates, archives preserve history, 
     const shiftId=shift.body.data.id;
     const roster=await request(state.managerUser,'/api/attendance/roster-groups',{name:'Native roster',code:'NATIVE-ROSTER',status:'Active',shifts:[{shiftId,isDefault:true}]});assert.equal(roster.status,201);const groupId=roster.body.data.id;
     assert.equal((await request(state.managerUser,'/api/attendance/assignments',{groupId,employeeIds:[state.employeeId],effectiveStartDate:today})).status,201);
+    assert.equal((await request(state.managerUser,`/api/attendance/roster-groups/${groupId}`,undefined,'DELETE')).status,409);
+    const unused=await request(state.managerUser,'/api/attendance/roster-groups',{name:'Unused roster',code:'UNUSED-ROSTER',shifts:[{shiftId,isDefault:true}]});
+    assert.equal(unused.status,201);
+    assert.equal((await request(state.managerUser,`/api/attendance/roster-groups/${unused.body.data.id}`,undefined,'DELETE')).status,200);
     assert.equal((await request(state.userId,'/api/attendance/my-shift')).body.data.id,groupId);
     assert.equal((await request(state.userId,'/api/attendance/my-attendance/manual',{date:today,inTime:'09:00',outTime:'18:00'})).status,403);
     assert.equal((await request(state.userId,'/api/attendance/dashboard')).status,200);

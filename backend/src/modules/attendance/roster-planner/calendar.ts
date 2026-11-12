@@ -21,7 +21,7 @@ export async function scheduleContext(reader: Reader, employeeIds: string[], fro
   const start = addDays(from, -1);
   const end = addDays(to, 1);
   const inRange = (value: unknown) => dateKey(value) >= start && dateKey(value) <= end;
-  const [rosters, links, calendars, shifts, assignments, attendance, leave, holidays, dayTypes, holidayCalendars] = await Promise.all([
+  const [rosters, links, calendars, shifts, assignments, attendance, leave, holidays, dayTypes, holidayCalendars, payrollLocks] = await Promise.all([
     reader.list('attendance_roster_groups'), reader.list('attendance_roster_group_shifts'),
     reader.list('attendance_roster_calendars', row => inRange(row.date)), reader.list('attendance_shifts'),
     reader.list('attendance_roster_assignments', row => employees.has(row.employeeId) && row.status === 'Active' &&
@@ -31,6 +31,7 @@ export async function scheduleContext(reader: Reader, employeeIds: string[], fro
     reader.list('leave_applications', row => (!row.employeeId || employees.has(row.employeeId)) && String(row.status).toUpperCase() === 'APPROVED' &&
       dateKey(row.startDate) <= end && dateKey(row.endDate) >= start),
     reader.list('calendarday', row => inRange(row.date)), reader.list('daytype'), reader.list('holidaycalendar'),
+    reader.payrollLocks?.(employeeIds, start, end) ?? [],
   ]);
   const groups = new Map(rosters.map(row => [String(row.id), { row: row as RosterRow, plan: readPlan(row) }]));
   const shiftMap = new Map(shifts.map(row => [String(row.id), row]));
@@ -47,6 +48,7 @@ export async function scheduleContext(reader: Reader, employeeIds: string[], fro
     return employeeId ? [{ ...row, employeeId }] : [];
   }));
   const records = new Map(attendance.map(row => [cellKey(row.employeeId, dateKey(row.date)), row]));
+  const payrollByEmployee = byEmployee(payrollLocks);
   const types = new Map(dayTypes.map(type => [type.id, type]));
   const holidaySources = new Map(holidayCalendars.map(calendar => [calendar.id, calendar]));
   const holidayNames = new Map<string, string[]>();
@@ -81,7 +83,9 @@ export async function scheduleContext(reader: Reader, employeeIds: string[], fro
     .some(row => dateKey(row.startDate) <= date && dateKey(row.endDate) >= date);
   function lockReason(employeeId: string, date: string) {
     const row = records.get(cellKey(employeeId, date));
-    return row ? Number(row.payrollLocked) === 1 || row.payrollLockedAt ? 'Payroll locked' : 'Attendance recorded' : undefined;
+    if (Number(row?.payrollLocked) === 1 || row?.payrollLockedAt ||
+        payrollByEmployee.get(employeeId)?.some(lock => lock.period === date.slice(0, 7))) return 'Payroll locked';
+    return row ? 'Attendance recorded' : undefined;
   }
   return { groups, shiftMap, holidayNames, existing, onLeave, lockReason };
 }
