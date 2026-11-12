@@ -14,6 +14,8 @@ export default function EntityModal({ entityType, initialData, onClose }: Props)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<any>(initialData || {});
+  const showDescription = !['location', 'geography', 'benefit', 'employeeTitle', 'costCentre'].includes(entityType);
+  const showEffectiveDates = ['company', 'employmentType', 'function', 'functionalRole', 'statutoryClassification', 'benefit'].includes(entityType);
   
   // Reference Data States
   const [corporateTitles, setCorporateTitles] = useState<any[]>([]);
@@ -127,7 +129,9 @@ export default function EntityModal({ entityType, initialData, onClose }: Props)
       
       let payload = {...formData,isActive:formData.isActive===undefined?true:Boolean(formData.isActive)};
       if(entityType==='salaryGrade'||entityType==='benefit')payload.currency=payload.currency||'LKR';
-      if(formData.effectiveStartDate&&formData.effectiveEndDate&&formData.effectiveEndDate<formData.effectiveStartDate)throw new Error('End date must be on or after the start date.');
+      if (showEffectiveDates && formData.effectiveStartDate && formData.effectiveEndDate && formData.effectiveEndDate < formData.effectiveStartDate) {
+        throw new Error('End date must be on or after the start date.');
+      }
       if(entityType==='salaryGrade'&&Number(formData.minSalary)>Number(formData.maxSalary))throw new Error('Maximum salary cannot be lower than minimum salary.');
       if (entityType === 'department') {
         payload = { ...payload, structureType: formData.structureType || 'Department' };
@@ -309,7 +313,7 @@ export default function EntityModal({ entityType, initialData, onClose }: Props)
             <label className="text-sm">Maximum salary<input aria-label="Maximum salary" type="number" min="0" step="0.01" value={formData.maxSalary??''} onChange={e=>updateField('maxSalary',e.target.value===''?null:Number(e.target.value))} className="input-field"/></label>
           </div>}
 
-          {!['location','geography','benefit'].includes(entityType)&&<label className="block text-sm">Description<textarea aria-label="Record description" value={formData.description||''} onChange={e=>updateField('description',e.target.value)} className="input-field" rows={2}/></label>}
+          {showDescription && <label className="block text-sm">Description<textarea aria-label="Record description" value={formData.description||''} onChange={e=>updateField('description',e.target.value)} className="input-field" rows={2}/></label>}
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={formData.isActive===undefined||Boolean(formData.isActive)} onChange={e=>updateField('isActive',e.target.checked)}/>Active record</label>
 
           {entityType === 'company' && (
@@ -439,7 +443,7 @@ export default function EntityModal({ entityType, initialData, onClose }: Props)
             </>
           )}
 
-          {['company', 'department', 'costCentre', 'designation', 'salaryGrade', 'employmentType', 'employeeCategory', 'employeeGroup', 'employeeTitle', 'function', 'functionalRole', 'statutoryClassification', 'benefit'].includes(entityType) && (
+          {showEffectiveDates && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Effective Start Date</label>

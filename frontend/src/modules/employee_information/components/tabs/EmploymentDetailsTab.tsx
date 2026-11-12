@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { eimsApi } from '../../../../lib/api/employee_information_audit';
 import { eimApi } from '../../../../lib/api/eimApi';
 import { reportingHierarchyApi } from '../../../../lib/api/reportingHierarchy';
+import type { HierarchyEmployee } from '../../../../types';
 import { CheckCircle, AlertTriangle, Loader2, Award } from 'lucide-react';
 
 interface ConfirmationResult {
@@ -31,7 +32,11 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState('');
   const [confirmResult, setConfirmResult] = useState<ConfirmationResult | null>(null);
-  const [eligibleManagers, setEligibleManagers] = useState<any[]>([]);
+  const [eligibleManagers, setEligibleManagers] = useState<HierarchyEmployee[]>([]);
+  const [managerSearch, setManagerSearch] = useState('');
+  const [managersLoading, setManagersLoading] = useState(true);
+  const [managerLoadError, setManagerLoadError] = useState(false);
+  const managerFieldId = useId();
   const [eimData, setEimData] = useState({
     companies: [] as any[], locations: [] as any[], departments: [] as any[],
     designations: [] as any[], salaryGrades: [] as any[], employmentTypes: [] as any[],
@@ -39,18 +44,38 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
   });
 
   useEffect(() => {
-    reportingHierarchyApi.getActiveEmployees('', employeeId)
-      .then(res => {
-        if (res.data && res.data.data && res.data.data.length > 0) {
-          setEligibleManagers(res.data.data);
-        } else {
-          loadFallbackManagers();
+    let cancelled = false;
+    const fetchManagers = async () => {
+      setManagerSearch('');
+      setEligibleManagers([]);
+      setManagersLoading(true);
+      setManagerLoadError(false);
+      try {
+        let managers: HierarchyEmployee[] = [];
+        try {
+          const response = await reportingHierarchyApi.getActiveEmployees('', employeeId);
+          managers = response.data.data || [];
+        } catch {
+          // The employee directory also provides the identifiers needed to assign a manager.
         }
-      })
-      .catch(err => {
-        console.error('Failed to load eligible managers', err);
-        loadFallbackManagers();
-      });
+        if (!managers.length && !cancelled) {
+          const response = await eimsApi.getEmployees();
+          managers = (response.data.data || []).map((employee: any) => ({
+            id: employee.id,
+            employeeNo: employee.employeeNo || employee.employeeNumber,
+            name: employee.callingName || [employee.personalDetails?.firstName || employee.firstName,
+              employee.personalDetails?.lastName || employee.lastName].filter(Boolean).join(' ') || 'Employee',
+            designation: employee.designation || employee.workstationDetails?.Designation?.name,
+          }));
+        }
+        if (!cancelled) setEligibleManagers(managers.filter(manager => manager.id !== employeeId));
+      } catch {
+        if (!cancelled) setManagerLoadError(true);
+      } finally {
+        if (!cancelled) setManagersLoading(false);
+      }
+    };
+    void fetchManagers();
 
 
     const fetchEim = async () => {
@@ -73,23 +98,8 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
       } catch (e) { console.error('EIM load error', e); }
     };
     fetchEim();
+    return () => { cancelled = true; };
   }, [employeeId]);
-
-  const loadFallbackManagers = () => {
-    eimsApi.getEmployees()
-      .then(res => {
-        const list = (res.data.data || [])
-          .filter((emp: any) => !employeeId || emp.id !== employeeId)
-          .map((emp: any) => ({
-            id: emp.id,
-            employeeNo: emp.employeeNo,
-            name: emp.callingName || (emp.personalDetails ? `${emp.personalDetails.firstName || ''} ${emp.personalDetails.lastName || ''}`.trim() : '') || emp.firstName || 'Employee',
-            designation: emp.designation || (emp.workstationDetails?.Designation?.name) || 'Staff'
-          }));
-        setEligibleManagers(list);
-      })
-      .catch(e => console.error('Failed to load fallback managers', e));
-  };
 
   const empTypeName = eimData.employmentTypes.find(t => t.id === data?.employmentTypeId)?.name || data?.employmentType;
   const isPermanent = empTypeName === 'Permanent';
@@ -128,6 +138,10 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
   };
 
   const currentManagerId = workstationData?.supervisorId || workstationData?.reportingManagerId || data?.reportingManagerId || '';
+  const managerQuery = managerSearch.trim().toLowerCase();
+  const matchingManagers = eligibleManagers.filter(manager =>
+    manager.name?.toLowerCase().includes(managerQuery) || manager.employeeNo?.toLowerCase().includes(managerQuery));
+  const currentManager = eligibleManagers.find(manager => manager.id === currentManagerId);
 
   return (
     <div className="space-y-8">
@@ -227,36 +241,45 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div className="col-span-2">
-            <label className="text-xs font-bold text-slate-500 mb-1 block">Reporting Manager *</label>
-            {eligibleManagers.length > 0 ? (
-              <select
-                className="w-full p-2 border border-slate-200 rounded-lg bg-white"
-                value={currentManagerId}
-                onChange={e => {
-                  const val = e.target.value;
-                  updateWorkstation({ supervisorId: val, reportingManagerId: val });
-                  handleChange('reportingManagerId', val);
-                }}
-              >
-                <option value="">-- Select Reporting Manager --</option>
-                {eligibleManagers.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.name || m.fullName} ({m.employeeNo}) - {m.designation || 'Staff'}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                className="w-full p-2 border border-slate-200 rounded-lg bg-white"
-                value={currentManagerId}
-                onChange={e => {
-                  const val = e.target.value;
-                  updateWorkstation({ supervisorId: val, reportingManagerId: val });
-                  handleChange('reportingManagerId', val);
-                }}
-                placeholder="Select or enter supervisor ID"
-              />
+            <label htmlFor={managerFieldId} className="text-xs font-bold text-slate-500 mb-1 block">Reporting Manager</label>
+            <input
+              type="search"
+              aria-label="Search reporting managers"
+              aria-controls={managerFieldId}
+              className="w-full p-2 mb-2 border border-slate-200 rounded-lg bg-white"
+              placeholder="Search by name or employee number"
+              value={managerSearch}
+              disabled={managersLoading || managerLoadError}
+              onChange={event => setManagerSearch(event.target.value)}
+            />
+            <select
+              id={managerFieldId}
+              className="w-full p-2 border border-slate-200 rounded-lg bg-white"
+              value={currentManagerId}
+              disabled={managersLoading || managerLoadError}
+              onChange={event => {
+                const managerId = event.target.value;
+                updateWorkstation({ supervisorId: managerId, reportingManagerId: managerId });
+                handleChange('reportingManagerId', managerId);
+                setManagerSearch('');
+              }}
+            >
+              <option value="">-- Select Reporting Manager --</option>
+              {currentManagerId && !matchingManagers.some(manager => manager.id === currentManagerId) && (
+                <option value={currentManagerId}>
+                  {currentManager ? `${currentManager.name} (${currentManager.employeeNo || 'No employee number'})` : data?.reportingManager || 'Current reporting manager'}
+                </option>
+              )}
+              {matchingManagers.map(manager => (
+                <option key={manager.id} value={manager.id}>
+                  {manager.name}{manager.employeeNo && ` (${manager.employeeNo})`}{manager.designation && ` - ${manager.designation}`}
+                </option>
+              ))}
+            </select>
+            {managersLoading && <p role="status" className="mt-1 text-xs text-slate-500">Loading reporting managers…</p>}
+            {managerLoadError && <p role="alert" className="mt-1 text-xs text-red-600">Unable to load reporting managers. Reopen the profile to try again.</p>}
+            {!managersLoading && !managerLoadError && managerQuery && !matchingManagers.length && (
+              <p role="status" className="mt-1 text-xs text-slate-500">No reporting managers match your search.</p>
             )}
           </div>
 

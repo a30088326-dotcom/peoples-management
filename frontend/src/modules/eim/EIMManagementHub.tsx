@@ -25,6 +25,12 @@ export default function EIMManagementHub({ onNavigate }: Props) {
 
   const tabs = [
   {
+    id: 'dashboard',
+    label: 'Overview',
+    icon: Database,
+    description: 'EIM summary and quick actions',
+  },
+  {
     id: 'organization',
     label: 'Organization',
     icon: Building2,
