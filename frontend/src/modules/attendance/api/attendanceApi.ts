@@ -65,6 +65,7 @@ export interface RosterGroup {
   status: 'Draft' | 'Active' | 'Inactive' | 'Archived';
   shifts?: RosterGroupShift[];
   employeeCount?: number;
+  hasAssignmentHistory?: boolean | number;
   departmentName?: string;
   calendarAssignments?: { date: string; shiftId: string | null; isOffDay: boolean }[];
 }

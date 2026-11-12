@@ -26,7 +26,8 @@ function Numeric({ label, value, change, max, min = 0, step = '0.01' }: {
     onChange={event => change(event.target.value === '' ? null : Number(event.target.value))} /></label>;
 }
 export function ProfileEditor({ employee, month, onSaved, locked }: SaveProps & { employee: Employee; month: string }) {
-  const [profile, set] = useState<Profile>({ basic: 0, allowance: 0, loan: 0, enabled: true, ...employee.profile,
+  const salaryHistory = !employee.profile && employee.salaryHistory?.currency === 'LKR' ? employee.salaryHistory : undefined;
+  const [profile, set] = useState<Profile>({ basic: salaryHistory?.basic ?? 0, allowance: 0, loan: 0, enabled: true, ...employee.profile,
     effectiveMonth: month, employeeId: employee.id });
   const state = useSave(onSaved);
   return <form className="payroll-form" onSubmit={event => void state.save(event, () => payrollApi.profile(profile))}>
@@ -34,6 +35,7 @@ export function ProfileEditor({ employee, month, onSaved, locked }: SaveProps & 
       <label>Effective month<input className="input-field" type="month" required value={profile.effectiveMonth}
         onChange={event => set({ ...profile, effectiveMonth: event.target.value })} /></label>
       <Numeric label="Monthly basic salary (LKR)" value={profile.basic} change={basic => set({ ...profile, basic: basic ?? 0 })} min={0.01} />
+      {salaryHistory && <small>Prefilled from salary history effective {salaryHistory.effectiveDate}. Confirm the amount before saving.</small>}
       <Numeric label="Fixed allowance (LKR)" value={profile.allowance} change={allowance => set({ ...profile, allowance: allowance ?? 0 })} />
       <Numeric label="Loan instalment (LKR)" value={profile.loan} change={loan => set({ ...profile, loan: loan ?? 0 })} />
       <label className="payroll-check"><input type="checkbox" checked={profile.enabled} onChange={event => set({ ...profile, enabled: event.target.checked })} /> Include in monthly payroll</label>

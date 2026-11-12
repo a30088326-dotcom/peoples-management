@@ -7,10 +7,11 @@ export type Rules = { effectiveMonth: string; otDivisor: number; hoursPerDay: nu
 export type Input = { employeeId: string; service: number; otHours: number; apit: number | null; checked: boolean };
 export type Amounts = Record<'noPay' | 'earnedBasic' | 'allowance' | 'service' | 'overtime' | 'gross' | 'base' |
   'employeeEpf' | 'employerEpf' | 'etf' | 'apit' | 'loan' | 'deductions' | 'net' | 'employerCost', number>;
-export type Employee = { id: string; name: string; employeeNumber: string; department: string; designation: string; profile: Profile | null };
+export type Employee = { id: string; name: string; employeeNumber: string; department: string; designation: string; profile: Profile | null;
+  salaryHistory?: { basic: number; currency: string; effectiveDate: string } };
 export type Line = Pick<Employee, 'name' | 'employeeNumber' | 'department' | 'designation'> & {
   employeeId: string; profile: Profile; input: Input; rosterDays: number; paidDays: number; unpaidDays: number;
-  workedHours: number; recordedOt: number; issues: string[]; amounts: Amounts | null;
+  workedHours: number; paidHours?: number; recordedOt: number; issues: string[]; amounts: Amounts | null;
 };
 export type Action = 'calculate' | 'submit' | 'approve' | 'return';
 export type Payroll = { period: string; status: 'draft' | 'calculated' | 'submitted' | 'approved'; version: number;

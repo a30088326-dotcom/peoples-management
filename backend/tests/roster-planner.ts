@@ -3,8 +3,9 @@ import { test } from 'node:test';
 import { shiftForDate } from '../src/modules/attendance/calculation.service';
 import { assignRoster } from '../src/modules/attendance/roster.service';
 import { addDays, draftSchema, OFF, plannedDay, type Draft, type Plan } from '../src/modules/attendance/roster-planner/pattern';
-import { changePublishedShift, publishRoster, rosterCalendar, rosterDetail, rosterOptions, saveDraft } from '../src/modules/attendance/roster-planner/service';
+import { changePublishedShift, deleteRosterDraft, publishRoster, rosterCalendar, rosterDetail, rosterOptions, saveDraft } from '../src/modules/attendance/roster-planner/service';
 import { RosterError } from '../src/modules/attendance/roster-validation';
+import { payrollWrite } from '../src/modules/payroll/store';
 import { withRepositoryForTests } from '../src/storage/repository';
 import { adminId, dayId, earlyId, employeeId, eveningId, nightId, rosterFixture, serverId } from './roster-fixture';
 
@@ -68,6 +69,105 @@ test('preview is separate from active attendance and publishing retains one assi
     const after = await rosterCalendar(adminId, { from: monday, to: monday, departmentId: 'service', rosterId: draft.id });
     assert.deepEqual(after.employees.map(row => row.id).sort(), [employeeId, serverId].sort());
   });
+});
+
+test('deleting an unused draft checks its version and keeps published assignments', async () => {
+  const repo = await rosterFixture();
+  await withRepositoryForTests(repo, async () => {
+    const saved = await saveDraft(adminId, { ...weekly, employees: [
+      ...weekly.employees, { employeeId: serverId, shifts: Array(7).fill(eveningId) },
+    ] });
+    const edited = await saveDraft(adminId, { ...weekly, employees: [{ employeeId, shifts: Array(7).fill(eveningId) }] }, saved);
+    const plan = await rosterDetail(adminId, saved.id);
+    assert.deepEqual(plan.employees.map(member => member.employeeId), [employeeId]);
+    assert.equal(firstShift(plan, monday), eveningId);
+    await assert.rejects(deleteRosterDraft(adminId, saved.id, saved.version), /changed elsewhere/);
+    assert.deepEqual(await deleteRosterDraft(adminId, saved.id, edited.version), { id: saved.id });
+    await assert.rejects(rosterDetail(adminId, saved.id), /not found/);
+
+    const next = await saveDraft(adminId, weekly);
+    const published = await publishRoster(adminId, next.id, next.version);
+    await assert.rejects(deleteRosterDraft(adminId, next.id, published.version), /Published rosters/);
+    assert.equal((await repo.find('attendance_roster_assignments', row => row.groupId === next.id)).length, 1);
+  });
+});
+
+test('approved payroll locks scheduled dates even with no attendance record', async () => {
+  const repo = await rosterFixture();
+  await withRepositoryForTests(repo, async () => {
+    const saved = await saveDraft(adminId, { ...weekly, endDate: '2027-02-07', employees: [
+      ...weekly.employees, { employeeId: serverId, shifts: Array(7).fill(eveningId) },
+    ] });
+    const published = await publishRoster(adminId, saved.id, saved.version);
+    await repo.create('payroll_records', { id: 'run:2027-01', kind: 'run', period: '2027-01',
+      payload: { status: 'approved', rows: [{ employeeId }] } });
+    await repo.create('payroll_records', { id: 'run:2027-02', kind: 'run', period: '2027-02',
+      payload: { status: 'submitted', rows: [{ employeeId }] } });
+    const calendar = await rosterCalendar(adminId, { from: '2027-01-31', to: '2027-02-01', rosterId: saved.id });
+    assert.deepEqual(calendar.employees.find(employee => employee.id === employeeId)?.cells.map(cell => cell.lock),
+      ['Payroll locked', undefined]);
+    assert.equal(calendar.employees.find(employee => employee.id === serverId)?.cells[0].lock, undefined);
+    await assert.rejects(changePublishedShift(adminId, saved.id, {
+      employeeId, date: monday, shiftId: OFF, scope: 'occurrence', version: published.version,
+    }), conflicts(/Payroll locked/));
+    const next = await changePublishedShift(adminId, saved.id, {
+      employeeId, date: '2027-02-01', shiftId: OFF, scope: 'occurrence', version: published.version,
+    });
+    assert.equal(next.version, published.version + 1);
+  });
+});
+
+test('an in-flight payroll approval must refresh after a published shift changes', async () => {
+  const repo = await rosterFixture();
+  await withRepositoryForTests(repo, async () => {
+    const saved = await saveDraft(adminId, weekly);
+    const published = await publishRoster(adminId, saved.id, saved.version);
+    let ready!: () => void;
+    let resume!: () => void;
+    const reading = new Promise<void>(resolve => { ready = resolve; });
+    const resumeApproval = new Promise<void>(resolve => { resume = resolve; });
+    const approval = payrollWrite(async store => {
+      ready();
+      await resumeApproval;
+      await store.put({ id: 'run:2027-01', kind: 'run', period: '2027-01', payload: { status: 'approved', rows: [{ employeeId }] } });
+    });
+    const started = await Promise.race([reading.then(() => true), approval.then(() => false)]);
+    assert.equal(started, true);
+    try {
+      await changePublishedShift(adminId, saved.id, {
+        employeeId, date: monday, shiftId: eveningId, scope: 'occurrence', version: published.version,
+      });
+    } finally { resume(); }
+    await assert.rejects(approval, { name: 'StorageConflictError' });
+    assert.equal(await repo.get('payroll_records', { id: 'run:2027-01' }), undefined);
+  });
+});
+
+test('a legacy assignment versions the parent roster before an in-flight deletion can commit', async () => {
+  const repo = await rosterFixture();
+  const groupId = 'legacy';
+  await repo.create('attendance_roster_groups', { id: groupId, name: 'Legacy roster', code: 'LEG', status: 'Active' });
+  await repo.create('attendance_roster_group_shifts', { id: 'legacy-default', groupId, shiftId: dayId, isDefault: 1 });
+  let ready!: () => void;
+  let resume!: () => void;
+  const reading = new Promise<void>(resolve => { ready = resolve; });
+  const resumeDeletion = new Promise<void>(resolve => { resume = resolve; });
+  const deletion = repo.transaction(async tx => {
+    const roster = await tx.get('attendance_roster_groups', { id: groupId });
+    assert.ok(roster);
+    assert.equal((await tx.find('attendance_roster_assignments', row => row.groupId === groupId)).length, 0);
+    ready();
+    await resumeDeletion;
+    await tx.remove('attendance_roster_groups', { id: groupId }, roster._version);
+  });
+  const started = await Promise.race([reading.then(() => true), deletion.then(() => false)]);
+  assert.equal(started, true);
+  try {
+    await repo.transaction(tx => assignRoster(tx, employeeId, groupId, monday));
+  } finally { resume(); }
+  await assert.rejects(deletion, { name: 'StorageConflictError' });
+  assert.ok(await repo.get('attendance_roster_groups', { id: groupId }));
+  assert.equal((await repo.find('attendance_roster_assignments', row => row.groupId === groupId)).length, 1);
 });
 
 test('publishing overlapping rosters concurrently activates only one, and legacy assignment honors the conflict', async () => {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireModuleAction } from '../../../middleware/module-action';
 import { RosterError, validRosterDate } from '../roster-validation';
 import { changeSchema, daysBetween, draftSchema } from './pattern';
-import { changePublishedShift, publishRoster, rosterCalendar, rosterDetail, rosterOptions, saveDraft } from './service';
+import { changePublishedShift, deleteRosterDraft, publishRoster, rosterCalendar, rosterDetail, rosterOptions, saveDraft } from './service';
 
 const router = Router();
 const action = (permission: Parameters<typeof requireModuleAction>[1]) => requireModuleAction('attendance_management', permission);
@@ -42,6 +42,9 @@ router.post('/', action('canCreate'), handle(async (req, res) => res.status(201)
 router.put('/:id', action('canEdit'), handle(async (req, res) => {
   const input = z.object({ draft: draftSchema, version }).parse(req.body);
   res.json({ success: true, data: await saveDraft(req.user!.userId, input.draft, { id: id.parse(req.params.id), version: input.version }) });
+}));
+router.delete('/:id', action('canDelete'), handle(async (req, res) => {
+  res.json({ success: true, data: await deleteRosterDraft(req.user!.userId, id.parse(req.params.id), version.parse(req.body?.version)) });
 }));
 router.post('/:id/publish', action('canApprove'), handle(async (req, res) => {
   res.json({ success: true, data: await publishRoster(req.user!.userId, id.parse(req.params.id), version.parse(req.body?.version)) });

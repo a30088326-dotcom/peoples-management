@@ -42,9 +42,9 @@ async function rosterDirectory(userId: string) {
   return { employees, departments };
 }
 
-async function assertScope(userId: string, employeeIds: string[]) {
+async function assertScope(userId: string, employeeIds: string[], allowInactive = false) {
   const { employees } = await rosterDirectory(userId);
-  const visible = new Set(employees.filter(employee => employee.active).map(employee => employee.id));
+  const visible = new Set(employees.filter(employee => allowInactive || employee.active).map(employee => employee.id));
   if (employeeIds.some(id => !visible.has(id))) throw new RosterError(403, 'One or more employees are outside your active roster scope.');
 }
 
@@ -117,6 +117,17 @@ export async function saveDraft(userId: string, draft: Draft, edit?: { id: strin
   });
 }
 
+export async function deleteRosterDraft(userId: string, id: string, version: number) {
+  return rosterTransaction(async tx => {
+    const row = await tx.getRoster(id);
+    const plan = expectPlan(row, version);
+    await assertScope(userId, memberIds(plan), true);
+    if (row!.status !== 'Draft') throw new RosterError(409, 'Published rosters have employee assignments and cannot be deleted.');
+    await tx.deleteDraft(row!);
+    return { id };
+  });
+}
+
 export async function publishRoster(userId: string, id: string, version: number) {
   return rosterTransaction(async tx => {
     const row = await tx.getRoster(id);
@@ -124,6 +135,7 @@ export async function publishRoster(userId: string, id: string, version: number)
     if (row!.status !== 'Draft') throw new RosterError(409, 'This roster is already published.');
     const ids = memberIds(plan);
     await assertScope(userId, ids);
+    await tx.lockPayroll();
     await tx.lockEmployees(ids);
     await checkShifts(tx, plan.employees.flatMap(member => member.shifts));
     const context = await scheduleContext(tx, ids, plan.startDate, plan.endDate);
@@ -144,6 +156,7 @@ export async function changePublishedShift(userId: string, id: string, change: S
     const next = applyChange(plan, change);
     assertPlanSize(next);
     await assertScope(userId, [change.employeeId]);
+    await tx.lockPayroll();
     await tx.lockEmployees([change.employeeId]);
     await checkShifts(tx, [change.shiftId]);
     const context = await scheduleContext(tx, [change.employeeId], plan.startDate, plan.endDate);

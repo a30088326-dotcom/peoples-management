@@ -31,6 +31,9 @@ export async function assignRosterNative(tx:RepositorySession,employeeId:string,
   if(previous.some(r=>r.effectiveStartDate&&String(r.effectiveStartDate)>start))throw new RosterError(409,'A later roster assignment already exists. Choose a date on or after that assignment.');
   const prior=new Date(start+'T12:00:00Z');prior.setUTCDate(prior.getUTCDate()-1);const before=prior.toISOString().slice(0,10);
   for(const row of previous) {const date=String(row.effectiveStartDate||row.effectiveFrom||start);const until=date>before?date:before;await tx.replace('attendance_roster_assignments',{...row,status:'Inactive',effectiveEndDate:until,effectiveTo:until});}
+  // A concurrent deletion must observe a new parent version even if its assignment scan was empty.
+  const group = (await tx.get('attendance_roster_groups', { id: groupId }))!;
+  await tx.replace('attendance_roster_groups', group);
   const id=randomUUID();await tx.create('attendance_roster_assignments',{id,employeeId,groupId,rosterGroupId:groupId,shiftId,effectiveStartDate:start,effectiveEndDate:end||null,effectiveFrom:start,effectiveTo:end||null,status:'Active'});
   return {id,rosterGroupId:groupId,shiftId};
 }
