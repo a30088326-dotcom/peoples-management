@@ -62,7 +62,8 @@ export async function saveInput(period: string, input: Input) {
     if (!employee) throw new PayrollError(404, 'An active salary profile is required.');
     if (input.otHours > employee.recordedOt) throw new PayrollError(400, 'Approved overtime cannot exceed completed attendance overtime.');
     const id = `input:${period}:${input.employeeId}`;
-    await store.put({ id, kind: 'input', period, employeeId: input.employeeId, payload: input }, await store.get(id));
+    await store.put({ id, kind: 'input', period, employeeId: input.employeeId,
+      payload: { ...input, sourceFingerprint: employee.sourceFingerprint } }, await store.get(id));
   });
 }
 

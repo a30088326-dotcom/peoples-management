@@ -39,3 +39,23 @@ test('monthly payroll blocks unreviewed inputs, detects changes, separates appro
     assert.deepEqual((await viewPayroll(period)).rows, approved.rows);
   });
 });
+
+test('edited attendance must be reviewed again before calculating payroll', async () => {
+  const repo = await rosterFixture();
+  const period = '2026-10';
+  const input = { employeeId, service: 0, otHours: 0, apit: 0, checked: true };
+  await withRepositoryForTests(repo, async () => {
+    await saveRules({ ...defaultRules, effectiveMonth: period });
+    await saveProfile({ employeeId, effectiveMonth: period, basic: 80_000, allowance: 0, loan: 0, enabled: true });
+    await saveInput(period, input);
+    await repo.create('attendance_records', { id: 'edited-attendance', employeeId, date: '2026-10-05',
+      inTime: '2026-10-05 09:00:00', outTime: '2026-10-05 17:00:00', totalHours: 8, overtimeHours: 0 });
+    const row = (await viewPayroll(period)).rows[0];
+    assert.equal(row.workedHours, 8);
+    assert.equal(row.input.checked, false);
+    assert.match(row.issues.join(' '), /Review attendance again/);
+    await assert.rejects(changeRun(period, 'calculate', 0, 'maker'), /Resolve the items/);
+    await saveInput(period, input);
+    assert.equal((await changeRun(period, 'calculate', 0, 'maker')).status, 'calculated');
+  });
+});

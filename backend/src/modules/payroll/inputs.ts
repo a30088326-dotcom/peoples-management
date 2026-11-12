@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { directory } from '../../shared/services/organization.service';
 import { dateKey, scheduleContext } from '../attendance/roster-planner/calendar';
 import { datesBetween, OFF, shiftInterval } from '../attendance/roster-planner/pattern';
@@ -29,7 +30,7 @@ export async function employeesFor(store: PayrollStore, period: string) {
 export type PayrollLine = {
   employeeId: string; name: string; employeeNumber: string; department: string; designation: string;
   profile: Profile; input: Input; rosterDays: number; paidDays: number; unpaidDays: number;
-  workedHours: number; recordedOt: number; issues: string[]; amounts: Amounts | null;
+  workedHours: number; recordedOt: number; sourceFingerprint: string; issues: string[]; amounts: Amounts | null;
 };
 
 export async function prepareInputs(store: PayrollStore, period: string, rules: Rules | undefined) {
@@ -52,7 +53,7 @@ export async function prepareInputs(store: PayrollStore, period: string, rules: 
   const rows: PayrollLine[] = selected.map(employee => {
     const profile = employee.profile!;
     const saved = savedInputs.find(row => row.period === period && row.employeeId === employee.id);
-    const input = saved?.payload as Input | undefined ?? { employeeId: employee.id, service: 0, otHours: 0, apit: null, checked: false };
+    const storedInput = saved?.payload as (Input & { sourceFingerprint?: string }) | undefined;
     const entries = attendance.filter(row => row.employeeId === employee.id);
     const issues = new Set<string>();
     const leaveRows = leave.filter(row => row.employeeId === employee.id || !row.employeeId && employee.userId && row.applicantId === employee.userId);
@@ -86,11 +87,20 @@ export async function prepareInputs(store: PayrollStore, period: string, rules: 
       issues.add('Missing punch or invalid worked duration');
     }
     if (new Set(entries.map(row => dateKey(row.date))).size < entries.length) issues.add('Duplicate attendance dates');
-    if (exceptions.some(row => row.employeeId === employee.id)) issues.add('Pending attendance exception');
+    const pending = exceptions.filter(row => row.employeeId === employee.id);
+    if (pending.length) issues.add('Pending attendance exception');
     const completed = entries.filter(row => row.inTime && row.outTime);
     const workedHours = Math.round(completed.reduce((sum, row) => sum + Number(row.totalHours || 0), 0) * 100) / 100;
     const recordedOt = Math.round(completed.reduce((sum, row) => sum + Math.max(0, Number(row.overtimeHours) || 0), 0) * 100) / 100;
-    if (!input.checked) issues.add('Review attendance, overtime and service charge');
+    const sourceFingerprint = createHash('sha256').update(JSON.stringify([
+      [...workdays], paidDays, unpaidDays, [...issues].sort(),
+      entries.map(row => [row.id, dateKey(row.date), row.inTime, row.outTime, row.shiftId, row.totalHours, row.overtimeHours]).sort(),
+      leaveRows.map(row => [row.id, row.startDate, row.endDate, row.leaveTypeId, row.halfDayType]).sort(),
+      pending.map(row => row.id).sort(),
+    ])).digest('hex');
+    const input: Input = { employeeId: employee.id, service: storedInput?.service ?? 0, otHours: storedInput?.otHours ?? 0,
+      apit: storedInput?.apit ?? null, checked: Boolean(storedInput?.checked && storedInput.sourceFingerprint === sourceFingerprint) };
+    if (!input.checked) issues.add(storedInput?.checked ? 'HR inputs changed. Review attendance again.' : 'Review attendance, overtime and service charge');
     if (input.otHours > recordedOt) issues.add('Approved overtime exceeds recorded overtime');
     if (rules?.taxMode === 'verified-input' && input.apit === null) issues.add('Enter the verified APIT amount');
     let amounts: Amounts | null = null;
@@ -100,7 +110,7 @@ export async function prepareInputs(store: PayrollStore, period: string, rules: 
       if (amounts && amounts.net < 0) issues.add('Deductions exceed gross pay');
     }
     return { employeeId: employee.id, name: employee.name, employeeNumber: employee.employeeNumber, department: employee.department,
-      designation: employee.designation, profile, input, rosterDays: workdays.size, paidDays, unpaidDays, workedHours, recordedOt, issues: [...issues], amounts };
+      designation: employee.designation, profile, input, rosterDays: workdays.size, paidDays, unpaidDays, workedHours, recordedOt, sourceFingerprint, issues: [...issues], amounts };
   });
   return { employees: directory, rows };
 }
