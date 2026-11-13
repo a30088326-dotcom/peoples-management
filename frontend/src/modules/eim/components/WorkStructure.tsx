@@ -3,8 +3,10 @@ import { Edit2, Briefcase, Coins, Award, Plus, Loader2, Trash2 } from 'lucide-re
 import { eimApi } from '../../../lib/api/eimApi';
 import EntityModal, { EntityType } from '../EntityModal';
 
-export default function WorkStructure() {
-  const [activeTab, setActiveTab] = useState<'salaryGrades' | 'corporateTitles' | 'designations'>('salaryGrades');
+type WorkTab = 'salaryGrades' | 'corporateTitles' | 'designations';
+
+export default function WorkStructure({ initialTab = 'salaryGrades' }: { initialTab?: WorkTab }) {
+  const [activeTab, setActiveTab] = useState<WorkTab>(initialTab);
   const [activeModal, setActiveModal] = useState<EntityType | null>(null);
   const [editingEntity, setEditingEntity] = useState<any>(null);
   

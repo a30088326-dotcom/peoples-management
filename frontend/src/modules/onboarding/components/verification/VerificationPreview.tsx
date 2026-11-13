@@ -31,8 +31,8 @@ export default function VerificationPreview({ document, busy, refreshRequired, o
     </div>}
     <footer className="verification-preview-actions">
       {document.status === 'PENDING' ? <>
-        <button type="button" className="btn-danger flex-1" onClick={onReject} disabled={busy || refreshRequired}>Reject</button>
-        <button type="button" className="btn-primary flex-1" onClick={onApprove} disabled={busy || refreshRequired}>{busy ? 'Saving…' : 'Approve Document'}</button>
+        <button type="button" className="btn-danger app-action-small" onClick={onReject} disabled={busy || refreshRequired}>Reject</button>
+        <button type="button" className="btn-primary app-action-small" onClick={onApprove} disabled={busy || refreshRequired}>{busy ? 'Saving…' : 'Approve Document'}</button>
       </> : document.status === 'REJECTED' ? <button type="button" className="btn-secondary flex-1" onClick={onSendLink} disabled={busy}>{busy ? 'Sending…' : 'Send Re-upload Link'}</button> :
         <p className="text-xs text-slate-500">Review complete. Only pending submissions can be approved or rejected.</p>}
     </footer>

@@ -2,8 +2,39 @@ import { useState, useEffect, useMemo } from 'react';
 import { History, Loader2, Search } from 'lucide-react';
 import { eimApi } from '../../../lib/api/eimApi';
 
+type AuditLog = {
+  id: string;
+  changedAt: string;
+  changedBy?: string;
+  action: string;
+  module: string;
+  recordId?: string;
+  reasonForChange?: string;
+  newValue?: unknown;
+  previousValue?: unknown;
+};
+
+function readSnapshot(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+}
+
 export default function AuditHistory() {
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -21,17 +52,18 @@ export default function AuditHistory() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const filteredLogs = useMemo(() => {
-    if (!searchQuery) return logs;
-    const lowerQuery = searchQuery.toLowerCase();
-    return logs.filter(log => 
-      (log.changedBy?.toLowerCase().includes(lowerQuery)) ||
-      (log.action?.toLowerCase().includes(lowerQuery)) ||
-      (log.module?.toLowerCase().includes(lowerQuery)) ||
-      (log.recordId?.toLowerCase().includes(lowerQuery)) ||
-      (log.reasonForChange?.toLowerCase().includes(lowerQuery))
-    );
-  }, [logs, searchQuery]);
+  const records = useMemo(() => logs.map(log => {
+    const current = readSnapshot(log.newValue);
+    const previous = readSnapshot(log.previousValue);
+    const name = firstText(current.name, current.fieldLabel, previous.name, previous.fieldLabel);
+    const code = firstText(current.code, current.fieldName, previous.code, previous.fieldName);
+    return { ...log, name, code };
+  }), [logs]);
+
+  const lowerQuery = searchQuery.trim().toLowerCase();
+  const filteredLogs = records.filter(log => [
+    log.changedBy, log.action, log.module, log.name, log.code, log.recordId, log.reasonForChange,
+  ].some(value => value?.toLowerCase().includes(lowerQuery)));
 
   return (
     <div className="space-y-6">
@@ -58,7 +90,7 @@ export default function AuditHistory() {
           <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
             <table tabIndex={0} className="responsive-data-table w-full text-left text-sm">
               <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                <tr><th className="px-4 py-3">Date & Time</th><th className="px-4 py-3">User</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Module</th><th className="px-4 py-3">Record ID</th><th className="px-4 py-3">Reason</th></tr>
+                <tr><th className="px-4 py-3">Date & Time</th><th className="px-4 py-3">User</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Module</th><th className="px-4 py-3">Record</th><th className="px-4 py-3">Reason</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredLogs.map(log => (
@@ -71,7 +103,14 @@ export default function AuditHistory() {
                       </span>
                     </td>
                     <td className="px-4 py-3">{log.module}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{log.recordId}</td>
+                    <td className="px-4 py-3 break-words" title={log.recordId ? `Record ID: ${log.recordId}` : undefined}>
+                      <span className={log.name || log.code ? 'font-medium text-slate-800' : 'font-mono text-xs text-slate-500'}>
+                        {log.name || log.code || log.recordId || '—'}
+                      </span>
+                      {log.name && log.code && log.name !== log.code && (
+                        <span className="block text-xs text-slate-500">{log.code}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 truncate max-w-xs">{log.reasonForChange || '-'}</td>
                   </tr>
                 ))}

@@ -242,16 +242,26 @@ export default function LeaveGroupsConfig() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="input-label">Employment Type</label>
-              <select name="employmentType" value={formData.employmentType} onChange={handleChange} className="input-field">
+              <label className="input-label" htmlFor="leave-group-employmentType">Employment Type</label>
+              <select id="leave-group-employmentType" name="employmentType" value={formData.employmentType} onChange={handleChange} className="input-field">
                 <option value="All">All Types</option>
+                <option value="Permanent">Permanent</option>
+                {formData.employmentType && formData.employmentType !== 'All' && formData.employmentType !== 'Permanent' &&
+                  !eimData.employmentTypes.some(item => item.id === formData.employmentType) && (
+                    <option value={formData.employmentType}>{formData.employmentType}</option>
+                  )}
                 {eimData.employmentTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="input-label">Country</label>
-              <select name="country" value={formData.country} onChange={handleChange} className="input-field">
+              <label className="input-label" htmlFor="leave-group-country">Country</label>
+              <select id="leave-group-country" name="country" value={formData.country} onChange={handleChange} className="input-field">
                 <option value="All">All Geographies</option>
+                <option value="Sri Lanka">Sri Lanka</option>
+                {formData.country && formData.country !== 'All' && formData.country !== 'Sri Lanka' &&
+                  !eimData.geography.some(item => item.id === formData.country) && (
+                    <option value={formData.country}>{formData.country}</option>
+                  )}
                 {eimData.geography.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </div>

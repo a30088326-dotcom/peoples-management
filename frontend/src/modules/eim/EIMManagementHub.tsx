@@ -4,7 +4,7 @@ import {
   Database, Building2, Briefcase, GraduationCap, Users,
   Sliders, History, Search} from 'lucide-react';
 import type { Screen } from '../../types';
-import EIMDashboard from './EIMDashboard';
+import EIMDashboard, { type OverviewDestination } from './EIMDashboard';
 import CompanyStructure from './components/CompanyStructure';
 import WorkStructure from './components/WorkStructure';
 import Classifications from './components/Classifications';
@@ -19,9 +19,13 @@ interface Props {
   onNavigate: (screen: Screen) => void;
 }
 
+type Section = OverviewDestination['tab'] | 'dashboard' | 'qualifications' | 'system-reference' | 'audit';
+type Navigation = { tab: Section; subtab?: never } | OverviewDestination;
+
 export default function EIMManagementHub({ onNavigate }: Props) {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [navigation, setNavigation] = useState<Navigation>({ tab: 'dashboard' });
   const [searchQuery, setSearchQuery] = useState('');
+  const activeTab = navigation.tab;
 
   const tabs = [
   {
@@ -66,16 +70,16 @@ export default function EIMManagementHub({ onNavigate }: Props) {
     icon: History,
     description: 'Track all master-data changes',
   },
-];
+] as const;
 
 
 
   const renderContent = () => {
-    switch (activeTab) {
+    switch (navigation.tab) {
       case 'organization':
-        return <CompanyStructure />;
+        return <CompanyStructure initialTab={navigation.subtab} />;
       case 'jobs':
-        return <WorkStructure />;
+        return <WorkStructure initialTab={navigation.subtab} />;
       case 'employee-reference':
         return <Classifications />;
       case 'qualifications':
@@ -98,7 +102,7 @@ export default function EIMManagementHub({ onNavigate }: Props) {
       case 'audit':
         return <AuditHistory />;
       default:
-        return <EIMDashboard />;
+        return <EIMDashboard onOpen={setNavigation} />;
     }
   };
 
@@ -144,7 +148,7 @@ export default function EIMManagementHub({ onNavigate }: Props) {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setNavigation({ tab: tab.id })}
                   aria-current={isActive ? 'page' : undefined}
                   className={`shrink-0 md:w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors group ${
                     isActive 

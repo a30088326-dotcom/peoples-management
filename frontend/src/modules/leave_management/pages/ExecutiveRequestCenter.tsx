@@ -75,14 +75,18 @@ export default function ExecutiveRequestCenter() {
       {/* Header */}
       <div className="shrink-0 bg-slate-900 rounded-2xl shadow-xl overflow-hidden relative">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-300 via-transparent to-transparent"></div>
-        <div className="p-8 sm:p-10 relative z-10 text-white">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center text-white ring-1 ring-white/20 shadow-inner">
-              <Briefcase size={24} />
+        <div className="relative z-10 px-4 py-3 text-white sm:px-6 sm:py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20">
+              <Briefcase size={18} />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Executive Request Center</h1>
-              <p className="text-slate-300 mt-1">Organization-wide view and final approvals</p>
+              <h1 className="text-lg font-bold tracking-tight sm:text-xl">
+                Executive Request Center
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-300">
+                Organization-wide view and final approvals
+              </p>
             </div>
           </div>
         </div>
@@ -201,9 +205,10 @@ export default function ExecutiveRequestCenter() {
                     </td>
                     <td className="p-4">
                       <div className="flex justify-end gap-2">
-                        <button 
+                        <button
+                          type="button"
                           onClick={() => setViewingRequest(req)}
-                          className="app-action text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100"
+                          className="app-action app-action-small min-w-24 whitespace-nowrap"
                         >
                           View Details
                         </button>

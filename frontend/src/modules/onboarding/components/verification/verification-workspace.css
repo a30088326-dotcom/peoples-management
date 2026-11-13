@@ -21,6 +21,7 @@
 .verification-preview-note { display: flex; flex-shrink: 0; align-items: start; gap: 8px; max-height: 80px; overflow-y: auto; margin: 0 12px 10px; padding: 8px 12px; border-radius: 6px; font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 .verification-preview-actions { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 8px; padding: 10px 16px; padding-right: 80px; border-top: 1px solid #e2e8f0; }
 .verification-preview-actions button { white-space: normal; }
+.verification-preview-actions .app-action-small { flex: 0 0 auto; }
 .verification-contract-link { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 8px; font-size: 12px; }
 .verification-contract-link button { flex-shrink: 0; }
 @media (max-width: 767px) {

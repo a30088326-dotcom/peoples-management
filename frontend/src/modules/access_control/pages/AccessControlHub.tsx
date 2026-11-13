@@ -326,9 +326,8 @@ export default function AccessControlHub() {
                         </td>
                         <td className="px-3 py-3 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => selectAll(mConfig.id, mConfig)} disabled={saving || isSuperAdmin || permissionsLoading || Boolean(permissionsError)} className="app-action text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-30 px-1.5 py-0.5 rounded hover:bg-indigo-50">All</button>
-                            <span className="text-slate-200">|</span>
-                            <button onClick={() => clearAll(mConfig.id)} disabled={saving || isSuperAdmin || permissionsLoading || Boolean(permissionsError)} className="app-action text-[10px] font-semibold text-slate-400 hover:text-slate-600 disabled:opacity-30 px-1.5 py-0.5 rounded hover:bg-slate-100">None</button>
+                            <button type="button" onClick={() => selectAll(mConfig.id, mConfig)} disabled={saving || isSuperAdmin || permissionsLoading || Boolean(permissionsError)} className="app-action app-action-compact min-w-11">All</button>
+                            <button type="button" onClick={() => clearAll(mConfig.id)} disabled={saving || isSuperAdmin || permissionsLoading || Boolean(permissionsError)} className="app-action app-action-compact min-w-11">None</button>
                           </div>
                         </td>
                       </tr>

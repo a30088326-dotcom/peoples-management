@@ -13,7 +13,7 @@ export default function VerificationDocumentList({ documents, selectedId, candid
       <h2 id="submitted-documents-title">Submitted Documents</h2>
       <div className="ml-auto flex shrink-0 items-center gap-3">
         <span className="text-xs text-slate-500" aria-label={`${documents.length} submitted documents`}>{documents.length}</span>
-        <button type="button" className="btn-primary whitespace-nowrap" onClick={onApproveAll}
+        <button type="button" className="btn-primary app-action-small whitespace-nowrap" onClick={onApproveAll}
           disabled={disabled || refreshRequired || pendingCount === 0} aria-busy={approvingAll}
           title={pendingCount === 0 ? 'No pending documents to approve' : undefined}>
           {approvingAll ? 'Approving…' : 'Approve All'}

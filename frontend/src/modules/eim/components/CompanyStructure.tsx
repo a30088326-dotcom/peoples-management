@@ -4,8 +4,10 @@ import { eimApi } from '../../../lib/api/eimApi';
 import EntityModal, { EntityType } from '../EntityModal';
 import CompanyHierarchyTab from './hierarchy/CompanyHierarchyTab';
 
-export default function CompanyStructure() {
-  const [activeTab, setActiveTab] = useState<'companies' | 'locations' | 'hierarchy' | 'cost_centres'>('companies');
+type CompanyTab = 'companies' | 'locations' | 'hierarchy' | 'cost_centres';
+
+export default function CompanyStructure({ initialTab = 'companies' }: { initialTab?: CompanyTab }) {
+  const [activeTab, setActiveTab] = useState<CompanyTab>(initialTab);
   const [activeModal, setActiveModal] = useState<EntityType | null>(null);
   const [editingEntity, setEditingEntity] = useState<any>(null);
   

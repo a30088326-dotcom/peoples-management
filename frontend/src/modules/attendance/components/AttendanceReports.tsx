@@ -67,60 +67,45 @@ export default function AttendanceReports() {
       </div>}
       {invalidRange && <p role="alert" className="text-red-600">The end date must be on or after the start date.</p>}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-              <TrendingUp size={20} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-[repeat(3,minmax(0,13rem))]">
+        {[
+          {
+            label: 'Present Today',
+            description: 'Total clocked in',
+            value: stats?.present,
+            Icon: TrendingUp,
+            color: 'bg-indigo-50 text-indigo-600',
+          },
+          {
+            label: 'Late Arrivals',
+            description: 'Exceeded grace period',
+            value: stats?.late,
+            Icon: Clock,
+            color: 'bg-amber-50 text-amber-600',
+          },
+          {
+            label: 'Pending Exceptions',
+            description: 'Awaiting approval',
+            value: stats?.pendingExceptions,
+            Icon: AlertCircle,
+            color: 'bg-red-50 text-red-600',
+          },
+        ].map(({ label, description, value, Icon, color }) => (
+          <div key={label} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color}`}>
+                <Icon size={16} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-slate-800">{label}</h3>
+                <p className="text-xs text-slate-500">{description}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-slate-800">Present Today</h3>
-              <p className="text-xs text-slate-400">Total clocked in</p>
-            </div>
-          </div>
-          <div className="text-3xl font-black text-slate-800">
-            {loading ? '...' : (stats?.present || 0)}
-          </div>
-          <div className="text-sm text-slate-500 font-medium mt-2 flex items-center gap-1">
-            Real-time metric
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <Clock size={20} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-800">Late Arrivals</h3>
-              <p className="text-xs text-slate-400">Exceeded grace period</p>
-            </div>
-          </div>
-          <div className="text-3xl font-black text-slate-800">
-            {loading ? '...' : (stats?.late || 0)}
-          </div>
-          <div className="text-sm text-slate-500 font-medium mt-2 flex items-center gap-1">
-            Real-time metric
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600">
-              <AlertCircle size={20} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-800">Pending Exceptions</h3>
-              <p className="text-xs text-slate-400">Awaiting approval</p>
+            <div className="mt-2 text-xl font-bold text-slate-800">
+              {loading ? '...' : (value ?? 0)}
             </div>
           </div>
-          <div className="text-3xl font-black text-slate-800">
-            {loading ? '...' : (stats?.pendingExceptions || 0)}
-          </div>
-          <div className="text-sm text-slate-500 font-medium mt-2 flex items-center gap-1">
-            Real-time metric
-          </div>
-        </div>
+        ))}
       </div>
 
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
