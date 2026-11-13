@@ -93,7 +93,7 @@
   font-size: 12px;
 }
 
-:is(.app-action, .btn-primary, .btn-secondary, .btn-danger).app-action-icon:has(> svg:is(.lucide-trash, .lucide-trash-2)):not(:disabled) {
+:is(.app-action, .btn-primary, .btn-secondary, .btn-danger).app-action-icon:has(> svg:is(.lucide-trash, .lucide-trash2, .lucide-trash-2)):not(:disabled) {
   --action-color: #fef2f2;
   --action-hover: #fee2e2;
   --action-active: #fecaca;
