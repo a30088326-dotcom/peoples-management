@@ -83,7 +83,7 @@ export default function Dashboard({onNavigate}:{onNavigate?:(screen:Screen)=>voi
       {/* ─── HEADER ───────────────────────────────────────────────────────────── */}
       <div className="shrink-0 flex flex-wrap gap-4 items-start justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-600/20">
+          <div className="w-12 h-12 bg-[var(--action-color)] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-[var(--action-color)]/20">
             <UserPlus size={24} />
           </div>
           <div>
@@ -109,7 +109,7 @@ export default function Dashboard({onNavigate}:{onNavigate?:(screen:Screen)=>voi
 
       <WorkspaceScrollArea label="Dashboard content"><div className="space-y-8">
       {error && <p role="alert" className="text-red-600">{error}</p>}
-      <OrganizationOverview onNavigate={onNavigate} refreshKey={refreshKey}/>
+      <OrganizationOverview refreshKey={refreshKey} />
 
       {/* ─── METRICS CARDS ────────────────────────────────────────────────────── */}
       <MetricsCards 

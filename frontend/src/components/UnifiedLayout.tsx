@@ -260,14 +260,14 @@ export default function UnifiedLayout({ currentScreen, onNavigate, children }: U
         {/* Brand */}
         <div className="app-nav-brand h-20 flex items-center px-6 border-b border-white/50 bg-white/30 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-blue-600/20 flex-shrink-0">
+            <div className="w-10 h-10 bg-[var(--action-color)] rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-[var(--action-color)]/20 flex-shrink-0">
               PH
             </div>
             <AnimatePresence>
               {isSidebarOpen && (
                 <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="flex flex-col whitespace-nowrap">
                   <span className="font-black text-slate-800 text-lg leading-none">Peoples Management</span>
-                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">HR Platform</span>
+                  <span className="text-[10px] font-bold text-black uppercase tracking-widest">HR Platform</span>
                 </motion.div>
               )}
             </AnimatePresence>
