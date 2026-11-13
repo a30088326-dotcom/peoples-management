@@ -19,8 +19,6 @@ export function AddEditNodeForm({ node, parentId, hierarchyConfig, onClose, onSu
     structureType: node?.structureType || '',
     description: node?.description || '',
     headPositionId: node?.headPositionId || '',
-    effectiveStartDate: node?.effectiveStartDate || '',
-    effectiveEndDate: node?.effectiveEndDate || '',
     isActive: node ? Boolean(node.isActive) : true,
     parentId: node?.parentId || parentId || ''
   });
@@ -36,7 +34,6 @@ export function AddEditNodeForm({ node, parentId, hierarchyConfig, onClose, onSu
     setError('');
     setLoading(true);
     try {
-      if(formData.effectiveStartDate&&formData.effectiveEndDate&&formData.effectiveEndDate<formData.effectiveStartDate)throw new Error('End date must be on or after the start date.');
       if (isEdit) {
         await eimApi.updateStructure(node.id, formData);
       } else {
@@ -89,17 +86,6 @@ export function AddEditNodeForm({ node, parentId, hierarchyConfig, onClose, onSu
             <input type="text" value={formData.headPositionId} onChange={e => setFormData({...formData, headPositionId: e.target.value})} className="w-full p-2 border rounded-lg text-sm bg-slate-50" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Start Date</label>
-              <input type="date" value={formData.effectiveStartDate} onChange={e => setFormData({...formData, effectiveStartDate: e.target.value})} className="w-full p-2 border rounded-lg text-sm bg-slate-50" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">End Date</label>
-              <input type="date" value={formData.effectiveEndDate} onChange={e => setFormData({...formData, effectiveEndDate: e.target.value})} className="w-full p-2 border rounded-lg text-sm bg-slate-50" />
-            </div>
-          </div>
-          
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button type="button" onClick={onClose} className="app-action px-4 py-2 border rounded-lg text-sm font-medium hover:bg-slate-50">Cancel</button>
             <button type="submit" disabled={loading} className="app-action px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700">
