@@ -10,29 +10,19 @@ import { useAuth } from '../../../context/AuthContext';
 import TeamProfileRequests from '../../self_service/components/TeamProfileRequests';
 import {
   leavesApi,
-  type TeamDashboardData,
   type PendingApprovalData,
 } from '../../../lib/api';
 import type { Screen } from '../../../types';
+import ApprovalModal from '../components/modals/ApprovalModal';
+import { PendingApprovalsWidget } from '../components/cards/SupervisorWidgets';
 
 interface SupervisorDashboardProps {
   onNavigate: (s: Screen) => void;
 }
 
-import ApprovalModal from '../components/modals/ApprovalModal';
-import {
-  AvailabilityWidget,
-  HeatmapWidget,
-  BradfordWidget,
-  PendingApprovalsWidget,
-  StatCards,
-} from '../components/cards/SupervisorWidgets';
-
-// ─── Main Component ──────────────────────────────────────────────────────────
-
 export default function SupervisorDashboard({ onNavigate }: SupervisorDashboardProps) {
   const { user } = useAuth();
-  const [data, setData] = useState<TeamDashboardData | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalData[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -43,7 +33,7 @@ export default function SupervisorDashboard({ onNavigate }: SupervisorDashboardP
     setError('');
     try {
       const res = await leavesApi.getTeamDashboard();
-      setData(res.data.data);
+      setPendingApprovals(res.data.data.pendingApprovals);
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
       setError(e.response?.data?.message ?? 'Failed to load dashboard');
@@ -87,7 +77,7 @@ export default function SupervisorDashboard({ onNavigate }: SupervisorDashboardP
     );
   }
 
-  if (!data) return null;
+  if (!pendingApprovals) return null;
 
   return (
     <div className="ambient-bg min-h-screen">
@@ -112,7 +102,7 @@ export default function SupervisorDashboard({ onNavigate }: SupervisorDashboardP
                 Supervisor Dashboard
               </h1>
               <p className="text-sm text-slate-400">
-                Team analytics & leave approvals · <strong className="text-slate-600">{user?.name}</strong>
+                Team requests · <strong className="text-slate-600">{user?.name}</strong>
               </p>
             </div>
           </div>
@@ -138,30 +128,7 @@ export default function SupervisorDashboard({ onNavigate }: SupervisorDashboardP
           </div>
         </motion.div>
 
-        {/* ── Widget E: Stat Cards (Top Strip) ─────────────────── */}
-        <div className="mb-6">
-          <StatCards stats={data.stats} />
-        </div>
-
-        {/* ── Main Grid ───────────────────────────────────────────  */}
-        <div className="grid grid-cols-12 gap-5">
-
-          {/* LEFT: Availability + Heatmap */}
-          <div className="col-span-4 space-y-5">
-            <AvailabilityWidget data={data.todaysAvailability} />
-            <BradfordWidget data={data.bradfordFactor} />
-          </div>
-
-          {/* CENTER + RIGHT: Heatmap + Pending */}
-          <div className="col-span-8 space-y-5">
-            <HeatmapWidget days={data.next7Days} />
-            <PendingApprovalsWidget
-              applications={data.pendingApprovals}
-              onReview={(app) => setReviewApp(app)}
-            />
-          </div>
-
-        </div>
+        <PendingApprovalsWidget applications={pendingApprovals} onReview={setReviewApp} />
       </div>
 
       <div className="max-w-7xl mx-auto px-6"><TeamProfileRequests/></div>

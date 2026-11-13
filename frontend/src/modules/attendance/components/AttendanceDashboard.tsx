@@ -58,50 +58,50 @@ export default function AttendanceDashboard() {
   if(error)return <div role="alert" className="p-8 text-red-600">{error} <button className="app-action underline" onClick={()=>setRetry(value=>value+1)}>Retry</button></div>;
 
   return (
-    <div className="p-8 space-y-8 bg-slate-50 min-h-[600px] rounded-2xl">
+    <div className="space-y-6 rounded-2xl bg-slate-50 p-4 sm:p-6">
       <div>
         <h2 className="text-xl font-bold text-slate-800">Today's Overview</h2>
         <p className="text-sm text-slate-500">Live attendance statistics for today</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,10rem))]">
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div>
             <p className="text-sm font-medium text-slate-500 mb-1">Present</p>
-            <h3 className="text-3xl font-black text-slate-800">{stats.present}</h3>
+            <h3 className="text-2xl font-black text-slate-800">{stats.present}</h3>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <Users size={24} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+            <Users size={20} />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div>
             <p className="text-sm font-medium text-slate-500 mb-1">Late Arrivals</p>
-            <h3 className="text-3xl font-black text-slate-800">{stats.late}</h3>
+            <h3 className="text-2xl font-black text-slate-800">{stats.late}</h3>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-            <Clock size={24} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+            <Clock size={20} />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div>
             <p className="text-sm font-medium text-slate-500 mb-1">On Leave</p>
-            <h3 className="text-3xl font-black text-slate-800">{stats.onLeave}</h3>
+            <h3 className="text-2xl font-black text-slate-800">{stats.onLeave}</h3>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-            <FileX size={24} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <FileX size={20} />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div>
             <p className="text-sm font-medium text-slate-500 mb-1">Pending Exceptions</p>
-            <h3 className="text-3xl font-black text-slate-800">{stats.pendingExceptions}</h3>
+            <h3 className="text-2xl font-black text-slate-800">{stats.pendingExceptions}</h3>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-600">
-            <AlertCircle size={24} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
+            <AlertCircle size={20} />
           </div>
         </div>
       </div>

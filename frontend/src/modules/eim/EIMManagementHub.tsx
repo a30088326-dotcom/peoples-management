@@ -28,7 +28,7 @@ export default function EIMManagementHub({ onNavigate }: Props) {
     id: 'dashboard',
     label: 'Overview',
     icon: Database,
-    description: 'EIM summary and quick actions',
+    description: 'EIM summary',
   },
   {
     id: 'organization',

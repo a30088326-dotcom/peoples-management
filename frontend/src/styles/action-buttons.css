@@ -66,14 +66,6 @@
   flex-shrink: 0;
 }
 
-/* Keep the existing compact employee footer usable on small screens. */
-@media (max-width: 600px) {
-  .employee-form-actions :is(.btn-primary, .btn-secondary, .btn-danger) {
-    padding: 7px 10px !important;
-    font-size: 12px;
-  }
-}
-
 .hrbot button.hrbot-launcher.app-action {
   width: 44px;
   height: 44px;

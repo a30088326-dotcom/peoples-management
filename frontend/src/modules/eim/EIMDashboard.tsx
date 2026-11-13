@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react';
 import { eimApi } from '../../lib/api/eimApi';
-import EntityModal, { EntityType } from './EntityModal';
 import { 
   Building2, MapPin, Network, GraduationCap, 
   Banknote, UserCircle2, 
-  Plus, Loader2
+  Loader2
 } from 'lucide-react';
 
 export default function EIMDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeModal, setActiveModal] = useState<EntityType | null>(null);
 
   const fetchStats = () => {
     eimApi.getDashboardStats()
@@ -40,18 +38,8 @@ export default function EIMDashboard() {
     { title: 'Employment Types', value: stats?.employmentTypes || 0, icon: UserCircle2, color: 'text-rose-600', bg: 'bg-rose-100' },
   ];
 
-  const quickActions = [
-    { title: 'Add Company', onClick: () => setActiveModal('company') },
-    { title: 'Add Location', onClick: () => setActiveModal('location') },
-    { title: 'Add Department', onClick: () => setActiveModal('department') },
-    { title: 'Add Designation', onClick: () => setActiveModal('designation') },
-    { title: 'Add Salary Grade', onClick: () => setActiveModal('salaryGrade') },
-  ];
-
   return (
     <div className="space-y-6">
-
-
       <div className="eim-stats-grid grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3 sm:gap-6">
         {statCards.map((card, idx) => {
           const Icon = card.icon;
@@ -68,37 +56,6 @@ export default function EIMDashboard() {
           );
         })}
       </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <h2 className="text-lg font-semibold text-slate-800">Quick Actions</h2>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,160px),1fr))] gap-4">
-            {quickActions.map((action, idx) => (
-              <button
-                key={idx}
-                onClick={action.onClick}
-                className="app-action"
-              >
-                <Plus size={20} strokeWidth={2.5} />
-                <span className="text-sm font-medium">
-                  {action.title}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      {activeModal && (
-        <EntityModal 
-          entityType={activeModal} 
-          onClose={(refresh) => {
-            setActiveModal(null);
-            if (refresh) fetchStats();
-          }}
-        />
-      )}
     </div>
   );
 }
