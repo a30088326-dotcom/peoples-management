@@ -11,5 +11,13 @@ const render=()=>{index=0;return exportsObject.useAccessEditor([{id:'onboarding'
  get=async()=>response(perms(false));await h.loadPermissions(b);h=render();patch=async()=>{throw{response:{data:{message:'Save failed'}}}};await h.handleSave();h=render();assert.match(h.saveMsg,/Save failed/);assert.equal(h.permissions.length,1);pending=deferred();patch=()=>pending.promise;const save=h.handleSave(),duplicate=h.handleSave();assert.equal(writes.length,3,'Double submission must issue only one new write');pending.resolve({data:{success:true}});await Promise.all([save,duplicate]);h=render();assert.match(h.saveMsg,/saved/);
  get=async()=>{throw new Error('Users unavailable')};await h.fetchUsers();h=render();assert.equal(h.usersError,'Users unavailable');get=async()=>response([a,b]);await h.fetchUsers();h=render();assert.equal(h.users.length,2);assert.equal(h.usersError,'');
  patch=async()=>{throw new Error('Status failed')};await h.toggleStatus(false);h=render();assert.equal(h.selectedUser.isActive,1);assert.match(h.saveMsg,/Status failed/);
+ patch=async(url,body)=>{
+   assert.equal(url,'/api/access-control/users/b/status');
+   assert.equal(typeof body.isActive,'boolean','The cloud status endpoint requires a boolean');
+   return {data:{success:true}};
+ };
+ await h.toggleStatus(false);h=render();assert.equal(h.selectedUser.isActive,0);
+ await h.toggleStatus(true);h=render();assert.equal(h.selectedUser.isActive,1);
+ assert.equal(writes.at(-2)[1].isActive,false);assert.equal(writes.at(-1)[1].isActive,true);
  console.log('PASS: permission loading failures, retry, out-of-order responses, closed editors, correct save target, duplicate-submit guard, failed-save preservation and account-status errors.');
 })().catch(e=>{console.error(e);process.exitCode=1});

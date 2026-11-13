@@ -75,7 +75,7 @@ export function useAccessEditor(modules: { id: string }[]) {
     writeInFlight.current = true;
     setSaving(true); setSaveMsg('');
     try {
-      const { data } = await api.patch(`/api/access-control/users/${id}/status`, { isActive: isActive ? 1 : 0 });
+      const { data } = await api.patch(`/api/access-control/users/${id}/status`, { isActive });
       if (!data.success) throw new Error(data.message || 'Unable to change account status.');
       setUsers(current => current.map(u => u.id === id ? { ...u, isActive: isActive ? 1 : 0 } : u));
       if (request === generation.current) setSelectedUser((current: any) => ({ ...current, isActive: isActive ? 1 : 0 }));
