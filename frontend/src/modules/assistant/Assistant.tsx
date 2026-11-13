@@ -111,7 +111,30 @@ function ChatConversation() {
 export function FloatingAssistant({ page }: { page: string }) {
   const a = useAssistant(); const { user } = useAuth(); const [expanded, setExpanded] = useState(false);
   if (!user || user.role === 'CANDIDATE' || page === 'assistant') return null;
-  return <div className="hrbot"><motion.div drag dragMomentum={false} dragListener={!a.open} className={`hrbot-floating ${expanded ? 'hrbot-expanded' : ''}`}>{a.open ? <><header><span><Bot size={20} /> {a.capabilities?.name || 'Peoples Management Assistant'}</span><div><button className="app-action app-action-icon" onClick={a.reset} title="New conversation" disabled={a.busy}><Plus size={17} /></button><button className="app-action" onClick={() => setExpanded(!expanded)} title={expanded ? 'Reduce panel' : 'Expand panel'}>{expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button className="app-action app-action-icon" onClick={() => a.setOpen(false)} title="Minimize assistant"><X size={19} /></button></div></header><div className="hrbot-quickbar"><button className="app-action" onClick={() => goToAssistantLink('/assistant')}>All available actions </button></div><Conversation /></> : <button aria-label="Open HR Assistant" className="app-action hrbot-launcher" onClick={() => a.setOpen(true)} title="Open HR Assistant (drag to move)"><Bot size={26} /><span>Assistant{a.updates.length ? ` (${a.updates.length} new)` : ''}</span></button>}</motion.div></div>;
+  return (
+    <div className="hrbot">
+      <motion.div drag dragMomentum={false} dragListener={!a.open} className={`hrbot-floating ${expanded ? 'hrbot-expanded' : ''}`}>
+        {a.open ? (
+          <>
+            <header>
+              <span><Bot size={20} /> {a.capabilities?.name || 'Peoples Management Assistant'}</span>
+              <div>
+                <button className="app-action app-action-icon" onClick={a.reset} title="New conversation" disabled={a.busy}><Plus size={17} /></button>
+                <button className="app-action" onClick={() => setExpanded(!expanded)} title={expanded ? 'Reduce panel' : 'Expand panel'}>{expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
+                <button className="app-action app-action-icon" onClick={() => a.setOpen(false)} title="Minimize assistant"><X size={19} /></button>
+              </div>
+            </header>
+            <div className="hrbot-quickbar"><button className="app-action" onClick={() => goToAssistantLink('/assistant')}>All available actions</button></div>
+            <Conversation />
+          </>
+        ) : (
+          <button type="button" aria-label="Open HR Assistant" className="app-action app-action-icon hrbot-launcher" onClick={() => a.setOpen(true)} title="Open HR Assistant (drag to move)">
+            <Bot size={24} aria-hidden="true" />
+          </button>
+        )}
+      </motion.div>
+    </div>
+  );
 }
 export function AssistantPage() {
   const a = useAssistant(); const [search, setSearch] = useState(''); const [showPassword, setShowPassword] = useState(window.location.hash === '#password');

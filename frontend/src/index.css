@@ -316,8 +316,3 @@
   padding: 24px;
   animation: fadeIn 0.2s ease both;
 }
-
-/* Keep editing actions clear of the assistant launcher. */
-body:has(.employee-workspace, .verification-workspace, .roster-workspace) .hrbot-launcher > span { display: none; }
-body:has(.employee-workspace, .verification-workspace, .roster-workspace) .hrbot-floating button.hrbot-launcher { width: 44px; height: 44px; padding: 0; border-radius: 6px; }
-body:has(.employee-workspace, .verification-workspace, .roster-workspace) .hrbot-launcher > svg { width: 24px; height: 24px; }

@@ -56,10 +56,7 @@
   .app-main[data-current-module="self_service"] .text-4xl, .app-main[data-current-module="self_service"] .text-5xl { font-size: 1.75rem; line-height: 1.2; }
   body:has(.holiday-calendar-footer) .hrbot-floating:not(:has(header)) { bottom: 110px; }
   .hrbot-floating { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
-  .hrbot .hrbot-floating button.hrbot-launcher { width: 52px; height: 52px; padding: 0; }
-  .hrbot-launcher > svg { width: 26px; height: 26px; flex-shrink: 0; }
   body:has(.employee-form-actions) .hrbot-floating:not(:has(header)) { bottom: 76px; }
-  .hrbot-launcher > span { display: none; }
   .hrbot-floating:has(header), .hrbot-floating.hrbot-expanded { width: calc(100vw - 24px); height: min(680px, calc(100dvh - 24px)); bottom: 12px; }
   .hrbot-floating header { padding: 12px; }
   .hrbot-floating header > span { min-width: 0; font-size: 12px; }

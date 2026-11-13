@@ -74,9 +74,12 @@
   }
 }
 
-.hrbot button.hrbot-launcher.app-action { padding: 12px !important; }
-body:has(.employee-workspace, .verification-workspace) .hrbot button.hrbot-launcher.app-action { padding: 0 !important; }
-@media (max-width: 767px) { .hrbot button.hrbot-launcher.app-action { padding: 0 !important; } }
+.hrbot button.hrbot-launcher.app-action {
+  width: 44px;
+  height: 44px;
+  padding: 0 !important;
+  border-radius: 50% !important;
+}
 
 /* Calendar cells need compact actions without increasing the date row height. */
 .app-action.app-action-compact { min-height: 24px; padding: 2px 6px !important; font-size: 10px; line-height: 18px !important; }
