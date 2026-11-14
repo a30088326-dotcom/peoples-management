@@ -9,6 +9,8 @@ export interface ConfirmationResult {
   employeeId: string;
   permanentEffectiveDate: Date;
   leaveGroupAssigned: string;
+  employmentTypeId?: string | null;
+  employmentType?: string;
   entitlements: {
     leaveTypeId: string;
     leaveTypeCode: string;

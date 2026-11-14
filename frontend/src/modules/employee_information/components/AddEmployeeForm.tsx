@@ -3,7 +3,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useState, useEffect } from 'react';
 import { User, Briefcase, Phone, FileText } from 'lucide-react';
 import PersonalDetailsTab from './tabs/PersonalDetailsTab';
-import EmploymentDetailsTab from './tabs/EmploymentDetailsTab';
+import EmploymentDetailsTab, { type SavedEmployment } from './tabs/EmploymentDetailsTab';
 import ContactDetailsTab from './tabs/ContactDetailsTab';
 import PayrollDetailsTab from './tabs/PayrollDetailsTab';
 import AttachmentsTab from './tabs/AttachmentsTab';
@@ -56,6 +56,9 @@ export default function AddEmployeeForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [activeEmployeeId, setActiveEmployeeId] = useState<string | undefined>(propEmployeeId);
+  const [savedEmployment, setSavedEmployment] = useState<SavedEmployment>();
+  const [profileRevision, setProfileRevision] = useState(0);
+  const loadingEmployee = loading || Boolean(activeEmployeeId && savedEmployment?.employeeId !== activeEmployeeId);
 
   const handleSelectOnboarded = (user: any) => {
     setActiveTab(0);
@@ -129,12 +132,24 @@ export default function AddEmployeeForm({
 
 
   useEffect(() => {
+    let cancelled = false;
     if (activeEmployeeId) {
       setLoading(true);
       eimsApi.getEmployeeById(activeEmployeeId).then(res => {
+        if (cancelled) return;
         if (res.data.success && res.data.data) {
           const emp = formatDatesForInputs(res.data.data);
           const draft = createEmployeeFormData();
+          const employmentType = emp.employmentType?.name || emp.employmentDetails?.employmentType || '';
+          const employmentStatus = emp.employeeStatus || 'Active';
+          setSavedEmployment({
+            employeeId: activeEmployeeId,
+            isActive: emp.isActive !== false && emp.isActive !== 0,
+            employmentStatus,
+            employmentType,
+            dateJoined: emp.employmentDetails?.dateJoined,
+            probationStatus: emp.employmentDetails?.probationStatus
+          });
           setFormData({
             userId: emp.userId || draft.userId || '',
             personalDetails: { ...draft.personalDetails, ...(emp.personalDetails || {}) },
@@ -145,14 +160,14 @@ export default function AddEmployeeForm({
               payrollNo: emp.payrollNo || '',
               payrollActive: emp.payrollActive !== false,
               timeAndAttendanceActive: emp.timeAndAttendanceActive !== false,
-              employmentStatus: emp.employeeStatus || 'Active',
+              employmentStatus,
 
               // IMPORTANT:
               // Keep both the FK id and display name in frontend state.
               organizationalRank: emp.organizationalRank || 'EMPLOYEE',
               companyId:emp.companyId || emp.workstationDetails?.companyId || '',
               employmentTypeId: emp.employmentType?.id || emp.employmentTypeId || '',
-              employmentType: emp.employmentType?.name || '',
+              employmentType,
             },
             workstationDetails: { 
               ...draft.workstationDetails,
@@ -201,14 +216,17 @@ export default function AddEmployeeForm({
             },
             otherDetails: emp.otherDetails || []
           });
+        } else {
+          setError(res.data.message || 'Failed to load employee details.');
         }
-      }).catch(err => {
-        setError('Failed to load employee details.');
+      }).catch(() => {
+        if (!cancelled) setError('Failed to load employee details.');
       }).finally(() => {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       });
     }
-  }, [activeEmployeeId]);
+    return () => { cancelled = true; };
+  }, [activeEmployeeId, profileRevision]);
 
 
 
@@ -224,7 +242,7 @@ export default function AddEmployeeForm({
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const handleSave = async () => {
-    if (loading || saving) return;
+    if (loadingEmployee || saving) return;
     // Basic frontend validation for Cost Centre 100%
     if (formData.workstationDetails.costCentre) {
       if (formData.workstationDetails.costAllocationPercentage !== 100) {
@@ -245,8 +263,13 @@ export default function AddEmployeeForm({
         reasonForLeaving: formData.employmentDetails.reasonForLeaving
       };
 
+      const { probationStatus: _probationStatus, permanentEffectiveDate: _permanentEffectiveDate, leaveGroupName: _leaveGroupName, ...employmentDetails } = formData.employmentDetails as typeof formData.employmentDetails & {
+        probationStatus?: string;
+        leaveGroupName?: string;
+      };
       const finalPayload = {
         ...formData,
+        employmentDetails,
         userId: formData.userId || undefined,
         resignationDetails: (resignationDetails.dateResigned || resignationDetails.reasonForLeaving) ? resignationDetails : undefined,
       };
@@ -261,6 +284,9 @@ export default function AddEmployeeForm({
         // If a new employee was just created, capture the returned employee ID
         if (!activeEmployeeId && res.data.data?.id) {
           setActiveEmployeeId(res.data.data.id);
+        } else if (activeEmployeeId) {
+          setLoading(true);
+          setProfileRevision(value => value + 1);
         }
         setSaveSuccess(true);
       } else {
@@ -314,9 +340,13 @@ export default function AddEmployeeForm({
 
         {/* Content Area */}
         <WorkspaceScrollArea resetKey={activeTab} label="Employee details tab content">
-          <fieldset disabled={!isAdmin || loading || saving} className="employee-editor-content">
+          <fieldset disabled={!isAdmin || loadingEmployee || saving} className="employee-editor-content">
             {activeTab === 0 && <PersonalDetailsTab data={formData.personalDetails} update={d => setFormData(prev => ({ ...prev, personalDetails: { ...prev.personalDetails, ...d } }))} />}
-            {activeTab === 1 && <EmploymentDetailsTab data={formData.employmentDetails} workstationData={formData.workstationDetails} update={d => setFormData(prev => ({ ...prev, employmentDetails: { ...prev.employmentDetails, ...d } }))} updateWorkstation={d => setFormData(prev => ({ ...prev, workstationDetails: { ...prev.workstationDetails, ...d } }))} employeeId={activeEmployeeId} />}
+            {activeTab === 1 && <EmploymentDetailsTab key={activeEmployeeId} data={formData.employmentDetails} workstationData={formData.workstationDetails}
+              update={d => setFormData(prev => ({ ...prev, employmentDetails: { ...prev.employmentDetails, ...d } }))}
+              updateWorkstation={d => setFormData(prev => ({ ...prev, workstationDetails: { ...prev.workstationDetails, ...d } }))}
+              employeeId={activeEmployeeId} savedEmployment={savedEmployment}
+              onConfirmed={() => setSavedEmployment(prev => prev && { ...prev, probationStatus: 'Confirmed' })} />}
             {activeTab === 2 && <ContactDetailsTab data={formData.contactDetails} update={d => setFormData(prev => ({ ...prev, contactDetails: { ...prev.contactDetails, ...d } }))} />}
             {activeTab === 3 && <PayrollDetailsTab data={formData.payrollDetails} update={d => setFormData(prev => ({ ...prev, payrollDetails: { ...prev.payrollDetails, ...d } }))} />}
             {activeTab === 4 && <AttachmentsTab employeeId={activeEmployeeId} />}
@@ -325,7 +355,7 @@ export default function AddEmployeeForm({
         </WorkspaceScrollArea>
 
         <EmployeeFormActions activeTab={activeTab} lastTab={activeTab === TABS.length - 1}
-          busy={loading || saving} saving={saving} canSave={isAdmin}
+          busy={loading || saving} saving={saving} canSave={isAdmin && !loadingEmployee}
           onPrevious={handlePrev} onNext={handleNext} onCancel={onClose} onSave={() => void handleSave()} />
       </div>
     </div>

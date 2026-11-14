@@ -3,6 +3,7 @@ import { repository, type RepositorySession } from '../../storage/repository';
 import type { EntityName } from '../../storage/table-definitions';
 import { canManageCandidate } from '../../middleware/module-action';
 import { processEntitlementsNative } from '../leave/entitlements.native';
+import { findEmploymentLeaveGroup, initialProbationStatus } from '../leave/employment-leave-group';
 import { assignRoster } from '../attendance/roster.service';
 import { changeReportingNative } from '../../shared/services/organization.service';
 import { employeeFor } from './policy';
@@ -36,7 +37,9 @@ export async function execute(c:Context,v:any) {
     const max=existing.reduce((n,r)=>Math.max(n,...[r.employeeNumber,r.employeeNo].map(value=>/^EMP-\d+$/i.test(value||'')?Number(value.slice(4)):0)),0);employeeNumber=`EMP-${String(max+1).padStart(6,'0')}`;
     const selected:Record<string,any>={};
     for(const [field,table] of Object.entries(masters)){const row=await tx.get(table as EntityName,{id:v.mapping[field]});ensure(row&&row.isActive!==0&&row.status!=='Inactive',`The selected ${field} changed. Request a new preview.`,409);selected[field]=row;}
-    await tx.create('employee_information_employees',{id,userId:ready.user.id,employeeNumber,employeeNo:employeeNumber,firstName:p.firstName,lastName:p.lastName,email:ready.user.email,employmentTypeId:selected.employmentType.id,employmentType:selected.employmentType.name,dateJoined:v.joinDate,status:'Active',employeeStatus:'Active',isActive:1,organizationalRank:'EMPLOYEE',companyId:selected.company.id,locationId:selected.location.id,departmentId:selected.department.id,department:selected.department.name,designationId:selected.designation.id,designation:selected.designation.name});
+    const probationStatus = initialProbationStatus(selected.employmentType.name);
+    const leaveGroup = probationStatus === 'Probation' ? await findEmploymentLeaveGroup(tx, 'Probation') : undefined;
+    await tx.create('employee_information_employees',{id,userId:ready.user.id,employeeNumber,employeeNo:employeeNumber,firstName:p.firstName,lastName:p.lastName,email:ready.user.email,employmentTypeId:selected.employmentType.id,employmentType:selected.employmentType.name,probationStatus,...(leaveGroup ? {leaveGroupId:leaveGroup.id} : {}),dateJoined:v.joinDate,status:'Active',employeeStatus:'Active',isActive:1,organizationalRank:'EMPLOYEE',companyId:selected.company.id,locationId:selected.location.id,departmentId:selected.department.id,department:selected.department.name,designationId:selected.designation.id,designation:selected.designation.name});
     await tx.create('employee_information_personal_details',{id:randomUUID(),employeeId:id,firstName:p.firstName,lastName:p.lastName,fullName:[p.firstName,p.lastName].join(' '),dob:p.dateOfBirth||null,gender:p.gender||null,nationality:p.nationality||null});
     await tx.create('employee_information_workstation_details',{id:randomUUID(),employeeId:id,companyId:selected.company.id,locationId:selected.location.id,departmentId:selected.department.id,designationId:selected.designation.id,employmentTypeId:selected.employmentType.id});
     await tx.create('employee_information_contact_details',{id:randomUUID(),employeeId:id,official:{email:v.email},permanent:{address:[p.addressLine1,p.addressLine2].filter(Boolean).join(' '),city:p.city||'',postalCode:p.postalCode||''},residential:{personal:{email:v.email,mobile:p.phoneNumber||'',alternatePhone:p.alternatePhone||''},emergencyContacts:p.emergencyContactName?[{name:p.emergencyContactName,relationship:p.emergencyContactRelation||'',primaryPhone:p.emergencyContactPhone||''}]:[]},linkedIn:p.linkedIn||null});

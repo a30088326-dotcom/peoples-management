@@ -27,6 +27,7 @@ export async function employeeProfileNative(employee: any, userId?: string, tx: 
   }
   if (contactDetails?.residential?.emergencyContacts) contactDetails.residential.emergencyContacts = identifiedContacts(contactDetails.residential.emergencyContacts);
   const employmentType = employee?.employmentTypeId ? await tx.get('employment_types', { id: employee.employmentTypeId }) : null;
+  const leaveGroup = employee?.leaveGroupId ? await tx.get('leave_groups', { id: employee.leaveGroupId }) : null;
   if (workstationDetails) {
     workstationDetails.supervisorId = employee?.reportingManagerId || null;
     workstationDetails.functionalRoleId = workstationDetails.functionalRole;
@@ -42,7 +43,7 @@ export async function employeeProfileNative(employee: any, userId?: string, tx: 
     isActive: !!employee?.isActive, timeAndAttendanceActive: !!employee?.timeAndAttendanceActive, payrollActive: !!employee?.payrollActive,
     employmentType, personalDetails, workstationDetails, contactDetails, resignationDetails, salaryHistories, bankDetails,
     employmentDetails: { ...(extras.employmentDetails || {}), dateJoined: employee?.dateJoined || invite?.joinedDate || null,
-      probationStatus: employee?.probationStatus, permanentEffectiveDate: employee?.permanentEffectiveDate,
+      probationStatus: employee?.probationStatus, permanentEffectiveDate: employee?.permanentEffectiveDate, leaveGroupName: leaveGroup?.name ?? null,
       designation: employee?.designation || invite?.designation, department: employee?.department || invite?.team,
       employmentType: employmentType?.name || employee?.employmentType || invite?.employmentType,
       organizationalRank: employee?.organizationalRank, reportingManager: manager ? [manager.firstName, manager.lastName].filter(Boolean).join(' ') || manager.callingName : employee?.organizationalRank === 'OWNER' ? 'Owner / no manager' : 'Not assigned' },

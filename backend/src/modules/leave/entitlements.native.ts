@@ -21,8 +21,9 @@ export async function processEntitlementsNative(employeeId:string, session?:Repo
       const result=await LeaveRulesEvaluator.evaluate({employeeId,leaveTypeId:type.id,leaveYear:leaveYear.year,assumeConfirmed:options.assumeConfirmed},script?.content,tx);
       const hasCarry=/output\s*\.\s*carryForwardAmount\s*=/.test(script?.content||'');
       const old=(await tx.find('leave_entitlements',r=>r.userId===employee.userId&&r.leaveTypeId===type.id&&r.leaveYearId===leaveYear!.id))[0];
-      if(old)await tx.replace('leave_entitlements',{...old,totalDays:result.entitlement,...(hasCarry?{carryForwardDays:result.carryForwardAmount}:{})});
-      else await tx.create('leave_entitlements',{id:randomUUID(),userId:employee.userId,leaveTypeId:type.id,leaveYearId:leaveYear.id,totalDays:result.entitlement,usedDays:0,pendingDays:0,carryForwardDays:hasCarry?result.carryForwardAmount:0,earnedDays:0,status:'PROCESSED'});
+      const group = employee.leaveGroupId ? {leaveGroupId: employee.leaveGroupId} : {};
+      if(old)await tx.replace('leave_entitlements',{...old,...group,totalDays:result.entitlement,...(hasCarry?{carryForwardDays:result.carryForwardAmount}:{})});
+      else await tx.create('leave_entitlements',{id:randomUUID(),userId:employee.userId,leaveTypeId:type.id,leaveYearId:leaveYear.id,...group,totalDays:result.entitlement,usedDays:0,pendingDays:0,carryForwardDays:hasCarry?result.carryForwardAmount:0,earnedDays:0,status:'PROCESSED'});
       generated.push({type:type.code,days:result.entitlement});
     }
     return generated;

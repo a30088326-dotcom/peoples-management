@@ -18,7 +18,7 @@ export const createEmployeeFormData = () => ({
       company: '',
       employeeNumber: '',
       dateJoined: '',
-      employmentType: 'Permanent',
+      employmentType: '',
       employmentTypeEffectiveDate: '',
       permanentEffectiveDate: '',
       probationStartDate: '',

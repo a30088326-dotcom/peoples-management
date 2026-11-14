@@ -4,6 +4,7 @@ import { processEntitlementsNative } from '../leave/entitlements.native';
 import type { ConfirmationResult } from './confirmationService';
 import { assertEmployee, isoDay } from './native-utils';
 import { touchEimReferences } from '../eim/eim.dynamo.service';
+import { findEmploymentLeaveGroup, isFixedTermEmployment } from '../leave/employment-leave-group';
 
 export async function confirmPermanentNative(employeeId: string, effective: Date, actorId: string, session?: RepositorySession): Promise<ConfirmationResult> {
   const run = async (tx: RepositorySession): Promise<ConfirmationResult> => {
@@ -12,15 +13,24 @@ export async function confirmPermanentNative(employeeId: string, effective: Date
     assertEmployee(employee, 'Employee not found', 404);
     assertEmployee(employee.userId, 'Employee has no linked user account');
     assertEmployee(employee.dateJoined, 'Employee has no date of joining. Cannot calculate leave entitlements.');
-    const effectiveDay = isoDay(effective); assertEmployee(effectiveDay && effectiveDay >= String(employee.dateJoined).slice(0, 10), 'Permanent effective date cannot precede the joining date.');
-    const groups = await tx.find('leave_groups', g => !!g.isActive && (g.employmentType === 'Permanent' || /permanent/i.test(g.name)));
-    const group = groups[0]; assertEmployee(group, 'No active Permanent Leave Group found.');
-    const permanent = (await tx.find('employment_types', t => String(t.name).toLowerCase() === 'permanent'))[0];
+    const employmentType = employee.employmentTypeId ? await tx.get('employment_types', { id: employee.employmentTypeId }) : undefined;
+    const typeName = String(employmentType?.name ?? employee.employmentType ?? '');
+    assertEmployee(Number(employee.isActive) === 1 && String(employee.employeeStatus || employee.status).toLowerCase() === 'active', 'Only active employees can be confirmed.');
+    assertEmployee(employee.probationStatus === 'Probation' && !isFixedTermEmployment(typeName), 'Only employees on probation can be confirmed.', 409);
+    const effectiveDay = isoDay(effective);
+    assertEmployee(effectiveDay && effectiveDay >= String(employee.dateJoined).slice(0, 10), 'Permanent effective date cannot precede the joining date.');
+    assertEmployee(effectiveDay <= new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10), 'Permanent effective date cannot be in the future.');
+    const group = await findEmploymentLeaveGroup(tx, 'Permanent');
+    assertEmployee(group, 'No active Permanent Leave Group found.');
+    const legacyProbationType = typeName.trim().toLowerCase() === 'probation';
+    const permanent = legacyProbationType
+      ? (await tx.find('employment_types', t => Number(t.isActive) === 1 && String(t.name).trim().toLowerCase() === 'permanent'))[0]
+      : undefined;
     const before = await tx.find('leave_entitlements', e => e.userId === employee.userId);
-    await tx.replace('employee_information_employees', { ...employee, probationStatus: 'Confirmed', permanentEffectiveDate: effectiveDay,
-      ...(permanent ? { employmentTypeId: permanent.id, employmentType: permanent.name } : {}) });
+    await tx.replace('employee_information_employees', { ...employee, probationStatus: 'Confirmed', permanentEffectiveDate: effectiveDay, leaveGroupId: group.id,
+      ...(legacyProbationType ? { employmentTypeId: permanent?.id ?? null, employmentType: permanent?.name ?? 'Permanent' } : {}) });
     const workstation = (await tx.find('employee_information_workstation_details', w => w.employeeId === employeeId))[0];
-    if (workstation && permanent) await tx.replace('employee_information_workstation_details', { ...workstation, employmentTypeId: permanent.id });
+    if (workstation && legacyProbationType) await tx.replace('employee_information_workstation_details', { ...workstation, employmentTypeId: permanent?.id ?? null });
     const generated = await processEntitlementsNative(employeeId, tx, { assumeConfirmed: true });
     const year = Number(new Date(Date.now() + 330 * 60000).toISOString().slice(0, 4));
     const leaveYear = (await tx.find('leave_years', y => Number(y.year) === year))[0]; assertEmployee(leaveYear, 'No active Leave Year found.');
@@ -38,9 +48,11 @@ export async function confirmPermanentNative(employeeId: string, effective: Date
     }
     void generated;
     const transitionId = randomUUID();
-    await tx.create('employee_information_employment_type_transitions', { id: transitionId, employeeId, previousEmploymentType: employee.probationStatus || employee.employeeStatus || 'Probation', newEmploymentType: 'Permanent', effectiveDate: effectiveDay, previousLeaveGroupId: before.find(e => e.leaveGroupId)?.leaveGroupId || null, newLeaveGroupId: group.id, appliedScripts, calculatedEntitlements: entitlements.map(e => ({ leaveTypeId: e.leaveTypeId, leaveTypeCode: e.leaveTypeCode, entitled: e.calculatedDays, alreadyUsed: e.alreadyUsed, netNew: e.netNewEntitlement })), performedBy: actorId });
+    await tx.create('employee_information_employment_type_transitions', { id: transitionId, employeeId, previousEmploymentType: 'Probation', newEmploymentType: 'Permanent', effectiveDate: effectiveDay, previousLeaveGroupId: employee.leaveGroupId || before.find(e => e.leaveGroupId)?.leaveGroupId || null, newLeaveGroupId: group.id, appliedScripts, calculatedEntitlements: entitlements.map(e => ({ leaveTypeId: e.leaveTypeId, leaveTypeCode: e.leaveTypeCode, entitled: e.calculatedDays, alreadyUsed: e.alreadyUsed, netNew: e.netNewEntitlement })), performedBy: actorId });
     await tx.create('employee_information_audit_logs', { id: randomUUID(), employeeId, userId: actorId, action: 'CONFIRM_PERMANENT', fieldChanged: 'probationStatus', previousValue: employee.probationStatus || employee.employeeStatus || 'Probation', newValue: 'Permanent (Confirmed)' });
-    return { success: true, employeeId, permanentEffectiveDate: new Date(`${effectiveDay}T00:00:00Z`), leaveGroupAssigned: group.name, entitlements, auditLogId: transitionId };
+    return { success: true, employeeId, permanentEffectiveDate: new Date(`${effectiveDay}T00:00:00Z`), leaveGroupAssigned: group.name,
+      ...(legacyProbationType ? { employmentTypeId: permanent?.id ?? null, employmentType: permanent?.name ?? 'Permanent' } : {}),
+      entitlements, auditLogId: transitionId };
   };
   return session ? run(session) : repository().transaction(run);
 }

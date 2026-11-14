@@ -246,7 +246,8 @@ export default function LeaveGroupsConfig() {
               <select id="leave-group-employmentType" name="employmentType" value={formData.employmentType} onChange={handleChange} className="input-field">
                 <option value="All">All Types</option>
                 <option value="Permanent">Permanent</option>
-                {formData.employmentType && formData.employmentType !== 'All' && formData.employmentType !== 'Permanent' &&
+                <option value="Probation">Probation</option>
+                {formData.employmentType && !['All', 'Permanent', 'Probation'].includes(formData.employmentType) &&
                   !eimData.employmentTypes.some(item => item.id === formData.employmentType) && (
                     <option value={formData.employmentType}>{formData.employmentType}</option>
                   )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from 'react';
+import { useState, useEffect, useId, useRef } from 'react';
 import { eimsApi } from '../../../../lib/api/employee_information_audit';
 import { eimApi } from '../../../../lib/api/eimApi';
 import { reportingHierarchyApi } from '../../../../lib/api/reportingHierarchy';
@@ -7,6 +7,8 @@ import { CheckCircle, AlertTriangle, Loader2, Award } from 'lucide-react';
 
 interface ConfirmationResult {
   leaveGroupAssigned: string;
+  employmentTypeId?: string;
+  employmentType?: string;
   entitlements: {
     leaveTypeName: string;
     leaveTypeCode: string;
@@ -17,7 +19,24 @@ interface ConfirmationResult {
   }[];
 }
 
-export default function EmploymentDetailsTab({ data, workstationData, update, updateWorkstation, employeeId }: { data: any, workstationData: any, update: (d: any) => void, updateWorkstation: (d: any) => void, employeeId?: string }) {
+export interface SavedEmployment {
+  employeeId: string;
+  isActive: boolean;
+  employmentStatus: string;
+  employmentType: string;
+  dateJoined?: string;
+  probationStatus?: string;
+}
+
+export default function EmploymentDetailsTab({ data, workstationData, update, updateWorkstation, employeeId, savedEmployment, onConfirmed }: {
+  data: any;
+  workstationData: any;
+  update: (data: any) => void;
+  updateWorkstation: (data: any) => void;
+  employeeId?: string;
+  savedEmployment?: SavedEmployment;
+  onConfirmed: () => void;
+}) {
   const handleChange = (field: string, value: any) => {
     update({ [field]: value });
   };
@@ -32,16 +51,23 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState('');
   const [confirmResult, setConfirmResult] = useState<ConfirmationResult | null>(null);
+  const mounted = useRef(false);
   const [eligibleManagers, setEligibleManagers] = useState<HierarchyEmployee[]>([]);
   const [managerSearch, setManagerSearch] = useState('');
   const [managersLoading, setManagersLoading] = useState(true);
   const [managerLoadError, setManagerLoadError] = useState(false);
   const managerFieldId = useId();
+  const confirmDateFieldId = useId();
   const [eimData, setEimData] = useState({
     companies: [] as any[], locations: [] as any[], departments: [] as any[],
     designations: [] as any[], salaryGrades: [] as any[], employmentTypes: [] as any[],
     functionalRoles: [] as any[], costCentres: [] as any[]
   });
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,18 +127,26 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
     return () => { cancelled = true; };
   }, [employeeId]);
 
-  const empTypeName = eimData.employmentTypes.find(t => t.id === data?.employmentTypeId)?.name || data?.employmentType;
-  const isPermanent = empTypeName === 'Permanent';
-  const isProbation = empTypeName === 'Probation';
-  const isContract = empTypeName === 'Contract';
+  const empTypeName = eimData.employmentTypes.find(t => t.id === data?.employmentTypeId)?.name || data?.employmentType || '';
+  const probationStatus = data?.probationStatus?.trim() || '';
+  const isConfirmed = probationStatus.toLowerCase() === 'confirmed';
+  const isProbation = probationStatus.toLowerCase() === 'probation';
+  const isContract = /\bcontract\b/i.test(empTypeName);
+  const isFixedTerm = /\b(contract|temporary|intern|internship|seasonal)\b/i.test(empTypeName);
+  const savedFixedTerm = /\b(contract|temporary|intern|internship|seasonal)\b/i.test(savedEmployment?.employmentType || '');
+  const joinedDay = savedEmployment?.dateJoined?.slice(0, 10) || '';
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo' }).format(new Date());
+  const canConfirm = savedEmployment?.employeeId === employeeId && savedEmployment?.isActive &&
+    savedEmployment.employmentStatus.toLowerCase() === 'active' && savedEmployment.probationStatus?.trim().toLowerCase() === 'probation' &&
+    !savedFixedTerm && !isFixedTerm && !!joinedDay && joinedDay <= today;
+  const isConfirmDateValid = confirmDate >= joinedDay && confirmDate <= today && !!confirmDate;
 
   const handleConfirmPermanent = async () => {
-    if (!confirmDate) {
-      setConfirmError('Please select the Permanent Effective Date');
+    if (!isConfirmDateValid) {
+      setConfirmError('Choose an effective date from the joining date through today.');
       return;
     }
-    if (!employeeId) {
-      setConfirmError('Employee must be saved first before confirming as permanent');
+    if (!canConfirm || !employeeId || confirming) {
       return;
     }
 
@@ -122,18 +156,22 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
 
     try {
       const response = await eimsApi.confirmPermanent(employeeId, confirmDate);
+      if (!mounted.current) return;
       const result = response.data?.data || response.data;
       setConfirmResult(result);
-      // Update the local form state to reflect the change
       update({
-        employmentType: 'Permanent',
+        ...(result.employmentTypeId !== undefined ? { employmentTypeId: result.employmentTypeId ?? '' } : {}),
+        ...(result.employmentType ? { employmentType: result.employmentType } : {}),
         probationStatus: 'Confirmed',
-        permanentEffectiveDate: confirmDate
+        permanentEffectiveDate: confirmDate,
+        leaveGroupName: result.leaveGroupAssigned
       });
+      if (result.employmentTypeId !== undefined) updateWorkstation({ employmentTypeId: result.employmentTypeId ?? '' });
+      onConfirmed();
     } catch (err: any) {
-      setConfirmError(err.response?.data?.message || err.message || 'Failed to confirm permanent');
+      if (mounted.current) setConfirmError(err.response?.data?.message || err.message || 'Failed to confirm permanent');
     } finally {
-      setConfirming(false);
+      if (mounted.current) setConfirming(false);
     }
   };
 
@@ -148,6 +186,21 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
       {/* 1. Employment Details */}
       <div>
         <h3 className="text-sm font-bold text-slate-700 mb-4 border-b pb-2">Employment Details</h3>
+
+        <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <p><span className="font-medium text-slate-600">Probation status</span> · {probationStatus || (employeeId ? 'Not set' : isFixedTerm ? 'Not applicable' : 'Probation on activation')}</p>
+          {data?.leaveGroupName && <p><span className="font-medium text-slate-600">Leave group</span> · {data.leaveGroupName}</p>}
+          {canConfirm && (
+            <button type="button" className="app-action app-action-small" onClick={() => {
+              setConfirmDate(today);
+              setConfirmError('');
+              setConfirmResult(null);
+              setShowConfirmDialog(true);
+            }}>
+              Confirm as Permanent
+            </button>
+          )}
+        </div>
 
         <label className="mb-4 flex w-fit items-center gap-2 text-sm font-medium text-slate-700">
           <input
@@ -178,22 +231,11 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
               const val = e.target.value;
               const updates: any = { dateJoined: val };
 
-              if (!data?.permanentEffectiveDate || data.permanentEffectiveDate === data.dateJoined) {
-                updates.permanentEffectiveDate = val;
-              }
               if (!data?.probationStartDate || data.probationStartDate === data.dateJoined) {
                 updates.probationStartDate = val;
               }
               if (!data?.contractStartDate || data.contractStartDate === data.dateJoined) {
                 updates.contractStartDate = val;
-              }
-
-              if (val) {
-                const dateObj = new Date(val);
-                if (!isNaN(dateObj.getTime())) {
-                  dateObj.setFullYear(dateObj.getFullYear() + 1);
-                  updates.expectedConfirmationDate = dateObj.toISOString().split('T')[0];
-                }
               }
 
               update(updates);
@@ -203,10 +245,9 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
             <label className="text-xs font-bold text-slate-500 mb-1 block">Employment Type *</label>
             <select className="w-full p-2 border border-slate-200 rounded-lg bg-white" value={data?.employmentTypeId || ''} onChange={e => {
               const val = e.target.value;
-              const typeName = eimData.employmentTypes.find(t => t.id === val)?.name;
               update({
                 employmentTypeId: val,
-                probationStatus: typeName === 'Probation' ? 'Probation' : (typeName === 'Permanent' ? 'Confirmed' : 'Active')
+                employmentType: eimData.employmentTypes.find(t => t.id === val)?.name || ''
               });
             }} required>
               <option value="">-- Select Type --</option>
@@ -216,10 +257,10 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          {isPermanent && (
+          {isConfirmed && (
             <div>
-              <label className="text-xs font-bold text-slate-500 mb-1 block">Permanent Effective Date *</label>
-              <input type="date" className="w-full p-2 border border-slate-200 rounded-lg bg-white" value={data?.permanentEffectiveDate || ''} onChange={e => handleChange('permanentEffectiveDate', e.target.value)} required={isPermanent} />
+              <label className="text-xs font-bold text-slate-500 mb-1 block">Permanent Effective Date</label>
+              <input type="date" className="w-full p-2 border border-slate-200 rounded-lg bg-slate-50" value={data?.permanentEffectiveDate || ''} readOnly />
             </div>
           )}
           {isProbation && (
@@ -373,7 +414,7 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
       {/* ── Confirmation Modal ── */}
       {showConfirmDialog && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !confirming && setShowConfirmDialog(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-label="Confirm as Permanent" className="bg-white rounded-2xl shadow-2xl max-h-[90dvh] overflow-y-auto w-full max-w-lg" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="p-6 border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -394,25 +435,28 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
                 <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
                 <div className="text-sm text-amber-700">
                   <p className="font-medium">This action cannot be undone.</p>
-                  <p className="mt-1">The system will use the <strong>original joining date ({data?.dateJoined || 'N/A'})</strong> to calculate leave entitlements. The entitlements will become available from the permanent effective date you select below.</p>
+                  <p className="mt-1">The system uses the <strong>original joining date ({joinedDay})</strong> to calculate leave entitlements.</p>
                 </div>
               </div>
 
               {/* Date Input */}
               <div>
-                <label className="text-sm font-bold text-slate-700 mb-2 block">Permanent Effective Date *</label>
+                <label htmlFor={confirmDateFieldId} className="text-sm font-bold text-slate-700 mb-2 block">Permanent Effective Date *</label>
                 <input
+                  id={confirmDateFieldId}
                   type="date"
                   className="w-full p-3 border-2 border-slate-200 rounded-lg focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
                   value={confirmDate}
+                  min={joinedDay}
+                  max={today}
                   onChange={e => setConfirmDate(e.target.value)}
-                  disabled={confirming}
+                  disabled={confirming || !!confirmResult}
                 />
               </div>
 
               {/* Error */}
               {confirmError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+                <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   {confirmError}
                 </div>
@@ -475,7 +519,7 @@ export default function EmploymentDetailsTab({ data, workstationData, update, up
                   <button
                     type="button"
                     onClick={handleConfirmPermanent}
-                    disabled={confirming || !confirmDate}
+                    disabled={confirming || !isConfirmDateValid}
                     className="app-action px-6 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
                     {confirming ? (

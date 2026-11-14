@@ -7,6 +7,7 @@ import { assignRoster } from '../attendance/roster.service';
 import { processEntitlementsNative } from '../leave/entitlements.native';
 import { touchEimReferences } from '../eim/eim.dynamo.service';
 import { confirmPermanentNative } from './confirmation.native';
+import { findEmploymentLeaveGroup, initialProbationStatus, isFixedTermEmployment } from '../leave/employment-leave-group';
 import { onboardingContact } from './onboarding-mapping';
 import { assertEmployee, columnData, isoDay, parseProfile } from './native-utils';
 
@@ -93,6 +94,7 @@ export async function saveEmployeeNative(body: any, actorId: string, id?: string
     let user = existing?.userId ? await tx.get('users', { id: existing.userId }) : body.userId ? await tx.get('users', { id: body.userId }) : undefined;
     if (!existing && body.userId) assertEmployee(user, 'User account to link not found.', 404);
     if (!existing && user) assertEmployee(!(await tx.find('employee_information_employees', e => e.userId === user!.id)).length, 'This user account is already linked to an employee.', 409);
+    const isCandidate = user?.role === 'CANDIDATE';
     if (!user) {
       const email = body.contactDetails?.official?.email || `emp_${randomUUID()}@company.com`;
       user = await tx.create('users', { id: randomUUID(), email, password: await bcrypt.hash(randomBytes(32).toString('base64url'), 12), name: body.personalDetails?.fullName || 'New Employee', role: 'EMPLOYEE', isActive: 1, mustChangePassword: 1 });
@@ -103,19 +105,36 @@ export async function saveEmployeeNative(body: any, actorId: string, id?: string
       const max = Math.max(0, ...all.map(e => Number(/^EMP-(\d+)$/.exec(String(e.employeeNo || e.employeeNumber))?.[1] || 0)));
       number = `EMP-${String(max + 1).padStart(6, '0')}`;
     }
+    const invite = !existing && isCandidate
+      ? (await tx.find('invites', row => row.status === 'ACCEPTED' && row.invitedUserId === user.id))
+          .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0]
+      : undefined;
+    const suppliedType = employment.employmentType ?? invite?.employmentType;
     let typeId = employment.employmentTypeId === undefined ? existing?.employmentTypeId ?? null : employment.employmentTypeId;
-    if (!typeId && employment.employmentType) typeId = (await tx.find('employment_types', t => String(t.name).toLowerCase() === String(employment.employmentType).toLowerCase()))[0]?.id || null;
+    if (!typeId && suppliedType) typeId = (await tx.find('employment_types', t => t.id === suppliedType ||
+      String(t.name).toLowerCase() === String(suppliedType).toLowerCase()))[0]?.id || null;
+    const type = typeId ? await tx.get('employment_types', { id: typeId }) : undefined;
+    const probationStatus = !existing
+      ? initialProbationStatus(type?.name ?? suppliedType)
+      : existing.probationStatus ?? initialProbationStatus(type?.name ?? existing.employmentType);
+    const probationGroup = !existing?.leaveGroupId && (!existing || (existing.dateJoined == null && employment.dateJoined !== undefined)) && probationStatus === 'Probation'
+      ? await findEmploymentLeaveGroup(tx, 'Probation')
+      : undefined;
     const patch: any = { ...(existing || {}), id: employeeId, userId: user.id, employeeNo: number, employeeNumber: existing?.employeeNumber || number,
       ...Object.fromEntries(['companyId','locationId','departmentId','designationId','salaryGradeId','employeeGroupId','jobProfileId'].filter(k => workstation[k] !== undefined).map(k => [k, workstation[k]])),
       employmentTypeId: typeId, isActive: existing?.isActive ?? 1, employeeStatus: employment.employmentStatus ?? existing?.employeeStatus ?? 'Active',
       organizationalRank: employment.organizationalRank ?? body.organizationalRank ?? existing?.organizationalRank ?? 'EMPLOYEE',
-      probationStatus: employment.probationStatus ?? existing?.probationStatus ?? 'Probation',
+      probationStatus,
+      ...(probationGroup ? { leaveGroupId: probationGroup.id } : {}),
+      ...(!existing && (type?.name || suppliedType) ? { employmentType: type?.name || suppliedType } : {}),
       payrollNo: employment.payrollNo ?? body.salaryPayrollDetails?.payrollNo ?? existing?.payrollNo ?? null,
       timeAndAttendanceActive: employment.timeAndAttendanceActive === undefined ? existing?.timeAndAttendanceActive ?? 1 : Number(!!employment.timeAndAttendanceActive),
       payrollActive: employment.payrollActive === undefined ? existing?.payrollActive ?? 1 : Number(!!employment.payrollActive),
       employeeGroup: employment.employeeGroup ?? existing?.employeeGroup ?? null,
-      dateJoined: employment.dateJoined === undefined ? existing?.dateJoined ?? null : isoDay(employment.dateJoined),
-      permanentEffectiveDate: employment.permanentEffectiveDate === undefined ? existing?.permanentEffectiveDate ?? null : isoDay(employment.permanentEffectiveDate),
+      dateJoined: employment.dateJoined === undefined ? existing?.dateJoined ?? isoDay(invite?.joinedDate) : isoDay(employment.dateJoined),
+      permanentEffectiveDate: existing?.probationStatus === 'Confirmed'
+        ? (employment.permanentEffectiveDate === undefined ? existing.permanentEffectiveDate ?? null : isoDay(employment.permanentEffectiveDate))
+        : null,
       reportingManagerId: existing?.reportingManagerId || null };
     assertEmployee(existing?.organizationalRank !== 'OWNER' || patch.organizationalRank === 'OWNER', 'The Owner cannot be demoted through an employee profile edit.', 403);
     if (employment.isActive !== undefined) patch.isActive = Number(!!employment.isActive);
@@ -158,10 +177,14 @@ export async function saveEmployeeNative(body: any, actorId: string, id?: string
     if (employment.rosterGroupId || body.attendance?.rosterGroupId) await assignRoster(tx, employeeId, employment.rosterGroupId || body.attendance.rosterGroupId, isoDay(body.attendance?.effectiveStartDate || patch.dateJoined) || new Date().toISOString().slice(0, 10));
     await tx.create('employee_information_audit_logs', { id: randomUUID(), employeeId, userId: actorId, action: existing ? 'UPDATE_EMPLOYEE' : 'CREATED', ipAddress: ip || null, fieldChanged: existing ? 'multiple' : null, previousValue: null, newValue: null });
     if (patch.status === 'Active' && patch.dateJoined && (!existing || ['dateJoined', 'employmentType', 'employmentTypeId', 'employmentStatus', 'probationStatus', 'permanentEffectiveDate'].some(k => employment[k] !== undefined))) {
-      const anniversary = new Date(`${String(patch.dateJoined).slice(0,10)}T00:00:00Z`); anniversary.setUTCFullYear(anniversary.getUTCFullYear() + 1);
-      const autoConfirm = !!existing && employment.dateJoined !== undefined && patch.probationStatus !== 'Confirmed' && anniversary.valueOf() <= Date.now();
-      if (autoConfirm) await confirmPermanentNative(employeeId, anniversary, actorId, tx);
-      else await processEntitlementsNative(employeeId, tx);
+      const changedJoinDate = existing?.dateJoined && patch.dateJoined !== isoDay(existing.dateJoined);
+      const anniversary = new Date(`${patch.dateJoined}T00:00:00Z`);
+      anniversary.setUTCFullYear(anniversary.getUTCFullYear() + 1);
+      if (changedJoinDate && probationStatus === 'Probation' && !isFixedTermEmployment(type?.name ?? existing?.employmentType) && anniversary.valueOf() <= Date.now()) {
+        await confirmPermanentNative(employeeId, anniversary, actorId, tx);
+      } else {
+        await processEntitlementsNative(employeeId, tx);
+      }
     }
     return tx.get('employee_information_employees', { id: employeeId });
   });

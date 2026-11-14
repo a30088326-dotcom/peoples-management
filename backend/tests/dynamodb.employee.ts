@@ -21,13 +21,14 @@ process.env.NODE_ENV = 'test'; process.env.DATABASE_PROVIDER = 'dynamodb'; proce
 (db as any).getConnection = async () => { throw new Error('Unexpected SQL employee connection'); };
 const year = new Date(Date.now() + 330 * 60000).getUTCFullYear();
 async function seed(repo: ReturnType<typeof memory>['repo']) {
-  const ids = Object.fromEntries(['owner', 'manager', 'staff', 'employee', 'company', 'location', 'department', 'designation', 'probation', 'permanent', 'gender', 'nationality', 'casual', 'annual', 'medical', 'group'].map(k => [k, randomUUID()]));
+  const ids = Object.fromEntries(['owner', 'manager', 'staff', 'employee', 'company', 'location', 'department', 'designation', 'probation', 'permanent', 'gender', 'nationality', 'casual', 'annual', 'medical', 'group', 'probationGroup'].map(k => [k, randomUUID()]));
   await repo.create('users', { id: ids.owner, email: 'owner@test.invalid', name: 'Owner Manager', role: 'SUPER_ADMIN', password: 'never-expose', isActive: 1 });
   await repo.create('employee_information_employees', { id: ids.manager, userId: ids.owner, employeeNo: 'EMP-000001', employeeNumber: 'EMP-000001', firstName: 'Owner', lastName: 'Manager', status: 'Active', isActive: 1, organizationalRank: 'OWNER' });
   await repo.create('users', { id: ids.staff, email: 'employee@test.invalid', name: 'Sample Employee', role: 'CANDIDATE', password: 'never-expose', isActive: 1 });
   for (const [entity, id, name] of [['eim_companies', ids.company, 'Test Company'], ['eim_locations', ids.location, 'Colombo'], ['eim_structures', ids.department, 'Finance'], ['designations', ids.designation, 'Analyst'], ['employment_types', ids.probation, 'Probation'], ['employment_types', ids.permanent, 'Permanent'], ['eim_genders', ids.gender, 'Male'], ['eim_nationalities', ids.nationality, 'Sri Lankan']] as const) await repo.create(entity, { id, name, code: id, isActive: 1 });
   for (const [id, code, name] of [[ids.casual, 'CASUAL', 'Casual'], [ids.annual, 'ANNUAL', 'Annual'], [ids.medical, 'MEDICAL', 'Medical']]) await repo.create('leave_types', { id, code, name, isActive: 1 });
   await repo.create('leave_groups', { id: ids.group, name: 'Permanent Staff', employmentType: 'Permanent', isActive: 1 });
+  await repo.create('leave_groups', { id: ids.probationGroup, name: 'Probation Employee Leave Group', code: 'LG-PROBATION', employmentType: 'Probation', isActive: true });
   return ids;
 }
 function body(ids: Record<string, string>) { return { userId: ids.staff, personalDetails: { firstName: 'Sample', lastName: 'Employee', gender: ids.gender, nationality: ids.nationality }, employmentDetails: { dateJoined: `${year}-10-23`, employmentTypeId: ids.probation, organizationalRank: 'EMPLOYEE', basicSalary: 150000 }, workstationDetails: { companyId: ids.company, locationId: ids.location, departmentId: ids.department, designationId: ids.designation, supervisorId: ids.manager }, contactDetails: { official: { email: 'employee@test.invalid' }, personal: { mobile: '0770000000' }, emergencyContacts: [{ name: 'Test Relative', relationship: 'Other', primaryPhone: '0770000001' }] }, payrollDetails: { bankDetails: { bank: 'Test Bank', branch: 'Colombo', accountName: 'Sample Employee', accountNumber: 'TEST-0001', currency: 'LKR' } }, costCentres: [{ id: ids.department, percentage: 100 }] }; }
@@ -42,7 +43,10 @@ test('native employee creation persists maps, account, every profile section, pr
     assert.equal(profile.personalDetails.gender, 'Male'); assert.equal(profile.personalDetails.nationality, 'Sri Lankan'); assert.equal(profile.workstationDetails.companyName, 'Test Company');
     assert.equal(profile.contactDetails.residential.personal.mobile, '0770000000'); assert.equal(profile.contactDetails.residential.emergencyContacts[0].name, 'Test Relative');
     assert.equal(profile.bankDetails[0].accountNo, 'TEST-0001'); assert.equal(profile.employmentDetails.basicSalary, 150000); assert.equal(profile.costCentres[0].percentage, 100);
-    assert.equal((await repo.find('leave_entitlements', r => r.leaveTypeId === ids.casual))[0].totalDays, 6); assert.equal((await repo.find('leave_entitlements', r => r.leaveTypeId === ids.annual))[0].totalDays, 0);
+    const casual = (await repo.find('leave_entitlements', r => r.leaveTypeId === ids.casual))[0];
+    assert.equal(casual.totalDays, 6); assert.equal((await repo.find('leave_entitlements', r => r.leaveTypeId === ids.annual))[0].totalDays, 0);
+    assert.equal(e!.probationStatus, 'Probation'); assert.equal(e!.leaveGroupId, ids.probationGroup);
+    assert.equal(casual.leaveGroupId, ids.probationGroup); assert.equal(profile.employmentDetails.leaveGroupName, 'Probation Employee Leave Group');
     assert.ok(!JSON.stringify(profile).includes('never-expose')); assert.equal((await repo.find('employee_information_audit_logs', () => true)).length, 1);
   });
 });
@@ -95,8 +99,12 @@ test('permanent confirmation updates one transaction, retains used/pending leave
     await repo.replace('leave_entitlements', { ...balance, usedDays: 2, pendingDays: 1 });
     const confirmation = await confirmPermanentNative(e!.id, new Date(`${year}-10-24T00:00:00Z`), ids.owner);
     const saved = await repo.get('employee_information_employees', { id: e!.id }), after = await repo.get('leave_entitlements', { id: balance.id });
-    assert.equal(saved!.probationStatus, 'Confirmed'); assert.equal(saved!.employmentTypeId, ids.permanent); assert.equal(saved!.employmentType, 'Permanent'); assert.equal(after!.totalDays, 7); assert.equal(after!.usedDays, 2); assert.equal(after!.pendingDays, 1); assert.equal(after!.leaveGroupId, ids.group);
-    assert.equal(confirmation.entitlements.find(e => e.leaveTypeCode === 'CASUAL')!.netNewEntitlement, 1); assert.equal((await repo.find('employee_information_employment_type_transitions', () => true)).length, 1);
+    assert.equal(saved!.probationStatus, 'Confirmed'); assert.equal(saved!.employmentTypeId, ids.permanent); assert.equal(saved!.employmentType, 'Permanent'); assert.equal(saved!.leaveGroupId, ids.group);
+    assert.equal(after!.totalDays, 7); assert.equal(after!.usedDays, 2); assert.equal(after!.pendingDays, 1); assert.equal(after!.leaveGroupId, ids.group);
+    assert.equal(confirmation.entitlements.find(e => e.leaveTypeCode === 'CASUAL')!.netNewEntitlement, 1);
+    const transitions = await repo.find('employee_information_employment_type_transitions', () => true);
+    assert.equal(transitions.length, 1); assert.equal(transitions[0].previousLeaveGroupId, ids.probationGroup); assert.equal(transitions[0].newLeaveGroupId, ids.group);
+    await assert.rejects(confirmPermanentNative(e!.id, new Date(`${year}-10-24T00:00:00Z`), ids.owner), /Only employees on probation/);
   });
 });
 test('permanent confirmation calculation failure leaves status, balances and transition unchanged', async () => {
@@ -155,6 +163,28 @@ test('backdated probation joining date confirms and allocates inside the same em
     await saveEmployeeNative({ employmentDetails: { dateJoined: `${year - 2}-01-01` } }, ids.owner, e!.id);
     const updated = await repo.get('employee_information_employees', { id: e!.id }); assert.equal(updated!.probationStatus, 'Confirmed'); assert.equal(updated!.permanentEffectiveDate, `${year - 1}-01-01`);
     assert.equal((await repo.find('leave_entitlements', r => r.leaveTypeId === ids.annual))[0].totalDays, 14); assert.equal((await repo.find('employee_information_employment_type_transitions', () => true)).length, 1);
+  });
+});
+
+test('confirmation keeps the regular employment type and rejects future dates or fixed-term employees', async () => {
+  const { repo } = memory(); await withRepositoryForTests(repo, async () => {
+    const ids = await seed(repo), regularTypeId = randomUUID(), contractTypeId = randomUUID();
+    await repo.create('employment_types', { id: regularTypeId, name: 'Full Time', code: 'FT', isActive: 1 });
+    await repo.create('employment_types', { id: contractTypeId, name: 'Fixed Term Contract', code: 'CON', isActive: 1 });
+    const input = body(ids), joinDate = `${year - 1}-01-01`;
+    const employee = await saveEmployeeNative({ ...input, employmentDetails: {
+      ...input.employmentDetails, dateJoined: joinDate, employmentTypeId: regularTypeId, probationStatus: 'Confirmed',
+    } }, ids.owner);
+    assert.equal(employee!.probationStatus, 'Probation');
+    const unchanged = await saveEmployeeNative({ employmentDetails: { dateJoined: joinDate } }, ids.owner, employee!.id);
+    assert.equal(unchanged!.probationStatus, 'Probation');
+    await assert.rejects(confirmPermanentNative(employee!.id, new Date(`${year + 1}-01-01`), ids.owner), /cannot be in the future/);
+    await confirmPermanentNative(employee!.id, new Date(joinDate), ids.owner);
+    const confirmed = await repo.get('employee_information_employees', { id: employee!.id });
+    assert.equal(confirmed!.leaveGroupId, ids.group); assert.equal(confirmed!.employmentTypeId, regularTypeId);
+    const contractor = await saveEmployeeNative({ employmentDetails: { dateJoined: joinDate, employmentTypeId: contractTypeId } }, ids.owner);
+    assert.equal(contractor!.probationStatus, 'Active'); assert.equal(contractor!.leaveGroupId, undefined);
+    await assert.rejects(confirmPermanentNative(contractor!.id, new Date(joinDate), ids.owner), /Only employees on probation/);
   });
 });
 test('an uncertain attachment commit retains bytes referenced by committed metadata', async () => {
