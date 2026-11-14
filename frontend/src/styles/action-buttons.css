@@ -67,6 +67,11 @@
 }
 
 .hrbot button.hrbot-launcher.app-action {
+  --action-color: #0f766e;
+  --action-hover: #115e59;
+  --action-active: #134e4a;
+  --action-border: #0f766e;
+  --action-focus: #0f766e;
   width: 44px;
   height: 44px;
   padding: 0 !important;
